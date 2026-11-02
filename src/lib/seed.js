@@ -57,10 +57,12 @@ function buildProject(meta, phases) {
   return { ...meta, tasks, deps };
 }
 
-export function buildSampleData(today) {
+export function buildSampleData(today, currency = 'USD') {
   const wk = startOfWeek(today);
+  // Sample amounts are authored in USD; scale to a realistic local level for IDR workspaces.
+  const fx = currency === 'IDR' ? 1500 : 1;
   const resources = RES.map(([key, name, role, discipline, capacity_hours, cost_rate, color]) => ({
-    key, name, role, discipline, capacity_hours, cost_rate, color, active: 1,
+    key, name, role, discipline, capacity_hours, cost_rate: cost_rate * fx, color, active: 1,
     email: name.toLowerCase().replace(/[^a-z ]/g, '').replace(' ', '.') + '@example.com',
   }));
 
@@ -173,6 +175,7 @@ export function buildSampleData(today) {
 
   const timeOff = [{ r: 'daniel', start_date: addDays(wk, 14), end_date: addDays(wk, 18), reason: 'Vacation' }];
 
+  for (const p of [atlas, orion, plant, helios]) p.budget *= fx;
   return { resources, holidays, timeOff, projects: [atlas, orion, plant, helios] };
 }
 

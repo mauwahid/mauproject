@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { CalendarDays, Database, Info, User, X, HardDriveDownload, FolderOpen } from 'lucide-react';
+import { CalendarDays, Database, Info, User, X, HardDriveDownload, FolderOpen, Coins } from 'lucide-react';
 import { useStore } from '../lib/store.jsx';
 import { TopBar } from '../components/layout.jsx';
 import { Field, BrandMark, confirmDialog } from '../components/ui.jsx';
 import { BlurInput } from '../components/TaskDrawer.jsx';
-import { fmtDate } from '../lib/format.js';
+import { fmtDate, fmtMoney, CURRENCIES, LOCALES } from '../lib/format.js';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -12,6 +12,7 @@ export default function Settings() {
   const { data, actions } = useStore();
   const [info, setInfo] = useState(null);
   const [hol, setHol] = useState({ date: '', name: '' });
+  const [fx, setFx] = useState('16000');
   useEffect(() => { window.mauproject.db.info().then(setInfo); }, [data]);
   let wd = [1, 2, 3, 4, 5];
   try { wd = JSON.parse(data.settings.workingDays); } catch { /* default */ }
@@ -30,11 +31,48 @@ export default function Settings() {
           <div className="card-h"><User size={15} /><h3>Workspace</h3></div>
           <div className="card-b grid2">
             <Field label="Your name (shown on comments and new projects)"><BlurInput className="input" value={data.settings.userName} onCommit={(v) => actions.setSetting('userName', v)} /></Field>
-            <Field label="Currency">
-              <select className="input" value={data.settings.currency} onChange={(e) => actions.setSetting('currency', e.target.value)}>
-                {['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'SGD', 'IDR', 'MYR', 'INR', 'AED', 'SAR', 'CNY'].map((c) => <option key={c}>{c}</option>)}
-              </select>
-            </Field>
+          </div>
+        </div>
+
+        <div className="card mt16">
+          <div className="card-h"><Coins size={15} /><h3>Currency & regional format</h3><span className="small muted">Used for budgets, cost rates, reports and Excel exports</span></div>
+          <div className="card-b">
+            <div className="grid2">
+              <Field label="Currency">
+                <select className="input" value={data.settings.currency} onChange={async (e) => {
+                  const c = e.target.value;
+                  await actions.setSetting('currency', c);
+                  if (c === 'IDR' && data.settings.locale !== 'id-ID') await actions.setSetting('locale', 'id-ID');
+                }}>
+                  {CURRENCIES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+                </select>
+              </Field>
+              <Field label="Number & date format">
+                <select className="input" value={data.settings.locale || 'en-US'} onChange={(e) => actions.setSetting('locale', e.target.value)}>
+                  {LOCALES.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
+                </select>
+              </Field>
+            </div>
+            <div className="small muted mt8">
+              Preview: <b>{fmtMoney(1250000000, data.settings.currency)}</b> · rate <b>{fmtMoney(175000, data.settings.currency)}</b>/h · {fmtDate('2026-12-24')}
+            </div>
+            <div className="section-title">Convert existing amounts</div>
+            <div className="small muted mb8">Switching currency does not change stored numbers. To convert all project budgets and team cost rates (e.g. USD → IDR), multiply them by an exchange rate:</div>
+            <div className="row">
+              <span className="small">× rate</span>
+              <input className="input" type="number" min="0" step="any" style={{ width: 160 }} value={fx} onChange={(e) => setFx(e.target.value)} />
+              <button className="btn" onClick={async () => {
+                const rate = Number(fx);
+                if (!(rate > 0)) return actions.toast('Enter a positive exchange rate', 'warn');
+                const ok = await confirmDialog({
+                  title: 'Convert all amounts?', confirmLabel: 'Convert',
+                  message: `All ${data.projects.length} project budgets and ${data.resources.length} cost rates will be multiplied by ${rate.toLocaleString()}. Back up first if unsure.`,
+                });
+                if (!ok) return;
+                await actions.convertCurrency(rate);
+                actions.toast('Budgets and cost rates converted', 'success');
+              }}>Convert budgets & rates</button>
+            </div>
           </div>
         </div>
 

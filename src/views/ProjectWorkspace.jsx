@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import {
-  GanttChartSquare, Network, Kanban, List, Users, LayoutDashboard, Settings2, Save, Plus, Diamond, FileDown,
+  GanttChartSquare, Network, Kanban, List, Users, LayoutDashboard, Settings2, Save, Plus, Diamond, FileDown, FileSpreadsheet,
 } from 'lucide-react';
 import { useStore } from '../lib/store.jsx';
 import { TopBar, navigate } from '../components/layout.jsx';
@@ -11,7 +11,7 @@ import WbsView from './project/WbsView.jsx';
 import Board from './project/Board.jsx';
 import { computeWorkload, bucketLabel, utilClass } from '../lib/analytics.js';
 import { addDays } from '../lib/calendar.js';
-import { fmtDate, fmtMoney, fmtHours, fmtPct } from '../lib/format.js';
+import { fmtDate, fmtMoney, fmtMoneyShort, fmtHours, fmtPct } from '../lib/format.js';
 import { projectReport } from '../lib/reports.js';
 
 const TABS = [
@@ -47,6 +47,7 @@ export default function ProjectWorkspace({ projectId, tab, openModal }) {
         <ProjectStatusPill status={project.status} />
         <button className="btn sm" onClick={() => actions.setBaseline(project.id)} title="Save current schedule as baseline"><Save size={14} />Baseline</button>
         <button className="btn sm" onClick={exportPdf}><FileDown size={14} />Report</button>
+        <button className="btn sm" onClick={() => openModal({ type: 'xlsx', projectIds: [project.id] })}><FileSpreadsheet size={14} />Excel</button>
         <button className="btn sm icon" title="Project settings" onClick={() => openModal({ type: 'project', project })}><Settings2 size={15} /></button>
         <button className="btn primary sm" onClick={() => openModal({ type: 'task', projectId: project.id })}><Plus size={14} />Task</button>
       </TopBar>
@@ -104,7 +105,7 @@ function Overview({ project, stats }) {
           <div className="k-sub">{project.target_date ? (late ? `${variance} working days past target` : 'on or before target') : 'no target set'}</div></div>
         <div className="card kpi"><div className="k-label">Tasks</div><div className="k-value">{stats.done}/{stats.leaves}</div><div className="k-sub">{stats.overdue} overdue · {stats.blocked} blocked</div></div>
         <div className="card kpi"><div className="k-label">Critical path</div><div className="k-value">{stats.critical}</div><div className="k-sub">tasks with zero slack</div></div>
-        <div className="card kpi"><div className="k-label">Planned cost</div><div className="k-value" style={{ fontSize: 20, color: project.budget && stats.cost > project.budget ? 'var(--danger)' : undefined }}>{fmtMoney(stats.cost, data.settings.currency)}</div>
+        <div className="card kpi"><div className="k-label">Planned cost</div><div className="k-value" style={{ fontSize: 20, color: project.budget && stats.cost > project.budget ? 'var(--danger)' : undefined }}>{fmtMoneyShort(stats.cost, data.settings.currency)}</div>
           <div className="k-sub">budget {fmtMoney(project.budget, data.settings.currency)} · {fmtHours(stats.work)} work</div></div>
       </div>
       <div className="layout-2 mt16">

@@ -22,7 +22,9 @@ contextBridge.exposeInMainWorld('mauproject', {
   files: {
     saveText: invoke('file:saveText'),
     exportPdf: invoke('report:pdf'),
+    exportXlsx: invoke('report:xlsx'),
     reveal: invoke('shell:reveal'),
+    open: invoke('shell:open'),
   },
   on(channel, cb) {
     const allowed = ['menu:navigate', 'menu:action'];

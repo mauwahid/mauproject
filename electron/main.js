@@ -3,6 +3,7 @@ const { app, BrowserWindow, ipcMain, dialog, Menu, shell, nativeTheme } = requir
 const path = require('path');
 const fs = require('fs');
 const { MauProjectDB } = require('./db');
+const { buildWorkbook } = require('./xlsx-export');
 
 const APP_NAME = 'MauProject';
 const APP_ID = 'com.mauproject.desktop';
@@ -73,6 +74,14 @@ function runScreenshots(dir) {
       const img = await wc.capturePage();
       fs.writeFileSync(path.join(dir, r.replace(/\//g, '_') + '.png'), img.toPNG());
     }
+    if (process.env.MAUPROJECT_XLSX_OUT) {
+      wc.send('menu:action', 'export-xlsx');
+      await wait(800);
+      fs.writeFileSync(path.join(dir, 'export_modal.png'), (await wc.capturePage()).toPNG());
+      await wc.executeJavaScript(`document.querySelector('.modal-f .btn.primary').click()`);
+      for (let i = 0; i < 60 && !fs.existsSync(process.env.MAUPROJECT_XLSX_OUT); i++) await wait(500);
+      await wait(500);
+    }
     fs.writeFileSync(path.join(dir, 'console-errors.txt'), errors.join('\n'));
     app.quit();
   });
@@ -104,6 +113,7 @@ function buildMenu() {
         { label: 'New Project…', accelerator: 'CmdOrCtrl+N', click: () => mainWindow.webContents.send('menu:action', 'new-project') },
         { label: 'New Task…', accelerator: 'CmdOrCtrl+T', click: () => mainWindow.webContents.send('menu:action', 'new-task') },
         { type: 'separator' },
+        { label: 'Export WBS & Workload (Excel)…', accelerator: 'CmdOrCtrl+E', click: () => mainWindow.webContents.send('menu:action', 'export-xlsx') },
         { label: 'Back Up Database…', click: () => mainWindow.webContents.send('menu:action', 'backup') },
         { type: 'separator' },
         isMac ? { role: 'close' } : { role: 'quit' },
@@ -200,7 +210,24 @@ function registerIpc() {
     return filePath;
   });
 
+  handle('report:xlsx', async (model, defaultName) => {
+    const buf = await buildWorkbook(model);
+    if (process.env.MAUPROJECT_XLSX_OUT) { // non-interactive export for automated checks
+      fs.writeFileSync(process.env.MAUPROJECT_XLSX_OUT, Buffer.from(buf));
+      return process.env.MAUPROJECT_XLSX_OUT;
+    }
+    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+      title: 'Export MauProject WBS & Workload',
+      defaultPath: defaultName || 'MauProject WBS-Workload.xlsx',
+      filters: [{ name: 'Excel Workbook', extensions: ['xlsx'] }],
+    });
+    if (canceled || !filePath) return null;
+    fs.writeFileSync(filePath, Buffer.from(buf));
+    return filePath;
+  });
+
   handle('shell:reveal', (p) => shell.showItemInFolder(p));
+  handle('shell:open', (p) => shell.openPath(p));
 }
 
 app.whenReady().then(() => {

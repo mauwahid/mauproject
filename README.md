@@ -29,7 +29,12 @@ engineering capacity planning in a single macOS desktop application.
 - **Capacity planning** — demand (assigned + unstaffed estimates) vs. supply by discipline, FTE gap per month, what-if hiring scenarios.
 - **Team** — roster, discipline, weekly capacity, cost rate, time off.
 - **Reports** — Portfolio Status, Project Status, Resource Utilization, Capacity Plan; export to PDF/HTML, plus CSV exports.
-- **Settings** — working days, hours/day, company holidays, currency, database backup.
+- **Excel export (WBS & Workload)** — File → Export WBS & Workload (⌘E): a live, formula-driven `.xlsx` with
+  *Petunjuk, Master, Hari Libur, Task Plan* (WBS blocks + daily Gantt), *Ringkasan* (utilization, overload days, cost)
+  and *Resource Map* (hours per person per project per day, overload highlighting). Choose period and projects.
+- **Currency & regional format** — IDR (Rupiah, `Rp 1.250.000`) is the default, with Indonesian date/number format;
+  13 currencies supported, plus a one-click converter for existing budgets and cost rates (e.g. USD → IDR).
+- **Settings** — working days, hours/day, company holidays, currency & locale, database backup.
 
 ## Development
 

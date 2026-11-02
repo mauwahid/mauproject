@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { AlertTriangle, ArrowRightLeft, X } from 'lucide-react';
+import { AlertTriangle, ArrowRightLeft, X, FileSpreadsheet } from 'lucide-react';
 import { useStore } from '../lib/store.jsx';
 import { TopBar } from '../components/layout.jsx';
 import { Avatar, Segmented, Empty } from '../components/ui.jsx';
@@ -9,7 +9,7 @@ import { DISCIPLINES, fmtHours, fmtPct, fmtDate } from '../lib/format.js';
 
 const HORIZON = { day: 21, week: 12, month: 6 };
 
-export default function Workload() {
+export default function Workload({ openModal }) {
   const { data, derived, actions } = useStore();
   const [bucket, setBucket] = useState('week');
   const [offset, setOffset] = useState(0);
@@ -77,6 +77,7 @@ export default function Workload() {
     <>
       <TopBar title="Resource Workload" crumbs={`${fmtDate(from)} – ${fmtDate(to)}`}>
         <Segmented value={bucket} onChange={(v) => { setBucket(v); setOffset(0); setSel(null); }} options={[{ value: 'day', label: 'Days' }, { value: 'week', label: 'Weeks' }, { value: 'month', label: 'Months' }]} />
+        <button className="btn sm primary" onClick={() => openModal({ type: 'xlsx' })}><FileSpreadsheet size={14} />Export Excel</button>
       </TopBar>
       <div className="content">
         <div className="row wrap mb16">

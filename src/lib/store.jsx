@@ -3,6 +3,7 @@ import { calendarFromSettings, todayISO } from './calendar.js';
 import { schedule, createsCycle, projectProgress } from './scheduler.js';
 import { hoursPerDay } from './analytics.js';
 import { buildSampleData, finalizeSampleData } from './seed.js';
+import { setFormatLocale } from './format.js';
 
 const api = window.mauproject;
 const StoreCtx = createContext(null);
@@ -91,7 +92,7 @@ export function StoreProvider({ children }) {
       try {
         let all = await reload();
         if (all.settings.seeded !== '1' && all.projects.length === 0) {
-          await api.db.importDataset(buildSampleData(todayISO()));
+          await api.db.importDataset(buildSampleData(todayISO(), all.settings.currency));
           all = await reload();
           await rescheduleAll();
           const fin = finalizeSampleData(ref.current, calFor(ref.current), todayISO());
@@ -109,6 +110,7 @@ export function StoreProvider({ children }) {
   // ---------- derived ----------
   const derived = useMemo(() => {
     if (!data) return null;
+    setFormatLocale(data.settings.locale);
     const cal = calFor(data);
     const today = todayISO();
     const schedules = new Map();
@@ -368,9 +370,17 @@ export function StoreProvider({ children }) {
         await rescheduleAll();
       },
 
+      /** Multiply all project budgets and cost rates by `rate` (e.g. USD → IDR). */
+      async convertCurrency(rate) {
+        const d = ref.current;
+        const pj = await api.db.bulkUpdate('projects', d.projects.map((p) => ({ id: p.id, patch: { budget: Math.round((Number(p.budget) || 0) * rate) } })));
+        const rs = await api.db.bulkUpdate('resources', d.resources.map((r) => ({ id: r.id, patch: { cost_rate: Math.round((Number(r.cost_rate) || 0) * rate) } })));
+        commit({ ...ref.current, projects: pj, resources: rs });
+      },
+
       // data management
       async loadSampleData() {
-        await api.db.importDataset(buildSampleData(todayISO()));
+        await api.db.importDataset(buildSampleData(todayISO(), ref.current.settings.currency));
         await reload();
         await rescheduleAll();
         const fin = finalizeSampleData(ref.current, calFor(ref.current), todayISO());

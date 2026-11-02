@@ -31,6 +31,20 @@
 **Reports** generates Portfolio Status, Project Status, Resource Utilization and Capacity Plan reports.
 Export as PDF or HTML; export all tasks as CSV.
 
+## Excel export (WBS & Workload)
+**File → Export WBS & Workload (Excel)…** (⌘E), or the **Excel** buttons on Reports, Workload and each project.
+Pick the start month, timeline length and projects. The workbook contains:
+- **Task Plan** — one WBS block per project (summary row, phases, one row per task × PIC with *Jam/Hari*) and a daily Gantt.
+- **Resource Map** — per person a *TOTAL JAM* row (green = at capacity, yellow = below, red = overload) and hours per project per day.
+- **Ringkasan** — utilization, overload days, peak hours and cost per person; dates, progress, status and planned cost per project.
+- **Master / Hari Libur** — projects, people (capacity per day, hourly rate), statuses and holidays used by the formulas.
+All figures are Excel formulas, so you can keep editing the plan in Excel. Blank yellow rows in each block are for extra activities.
+
+## Currency (IDR)
+**Settings → Currency & regional format**: choose **IDR — Rupiah Indonesia** and **Bahasa Indonesia** formatting
+(`Rp 1.250.000`, `24 Des 2026`). Changing currency does not convert stored amounts; use **Convert budgets & rates**
+with an exchange rate (e.g. 16000 for USD → IDR).
+
 ## Data
 All data is stored locally in `mauproject.db` under `~/Library/Application Support/MauProject/`.
 Use **File → Back Up Database…** or **Settings → Data** to create backups.

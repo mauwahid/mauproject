@@ -5,7 +5,7 @@ import { TopBar, NewButton, navigate } from '../components/layout.jsx';
 import { HealthPill, Progress, Avatar, Empty, StatusPill } from '../components/ui.jsx';
 import { Donut, UtilBars } from '../components/charts.jsx';
 import { computeWorkload } from '../lib/analytics.js';
-import { TASK_STATUSES, fmtDate, fmtMoney, fmtPct } from '../lib/format.js';
+import { TASK_STATUSES, fmtDate, fmtMoneyShort, fmtPct } from '../lib/format.js';
 import { addDays } from '../lib/calendar.js';
 
 export default function Dashboard({ openModal }) {
@@ -41,7 +41,7 @@ export default function Dashboard({ openModal }) {
     { icon: Activity, label: 'Open tasks', value: leafTasks.filter((t) => t.status !== 'done').length, sub: `${leafTasks.filter((t) => t.status === 'in_progress').length} in progress` },
     { icon: AlertTriangle, label: 'Overdue tasks', value: overdue.length, sub: 'past finish date, not done', color: overdue.length ? 'var(--danger)' : undefined },
     { icon: Users, label: 'Team utilization (4 wks)', value: fmtPct(totCap ? totLoad / totCap : 0), sub: `${overloaded.length} people over-allocated`, color: overloaded.length ? 'var(--warn)' : undefined },
-    { icon: Wallet, label: 'Planned labor cost', value: fmtMoney(cost, data.settings.currency), sub: `of ${fmtMoney(budget, data.settings.currency)} budget` },
+    { icon: Wallet, label: 'Planned labor cost', value: fmtMoneyShort(cost, data.settings.currency), sub: `of ${fmtMoneyShort(budget, data.settings.currency)} budget` },
   ];
 
   if (!data.projects.length) {

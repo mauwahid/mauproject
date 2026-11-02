@@ -130,7 +130,8 @@ const HAS_UPDATED_AT = new Set(['projects', 'tasks']);
 const DEFAULT_SETTINGS = {
   workingDays: '[1,2,3,4,5]',
   hoursPerDay: '8',
-  currency: 'USD',
+  currency: 'IDR',
+  locale: 'id-ID',
   userName: 'Engineering Manager',
   theme: 'light',
   seeded: '0',

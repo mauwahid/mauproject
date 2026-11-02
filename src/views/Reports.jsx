@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { FileText, FileDown, Code2, Briefcase, Users, Gauge, Table } from 'lucide-react';
+import { FileText, FileDown, Code2, Briefcase, Users, Gauge, Table, FileSpreadsheet } from 'lucide-react';
 import { useStore } from '../lib/store.jsx';
 import { TopBar } from '../components/layout.jsx';
 import { portfolioReport, projectReport, utilizationReport, capacityReport } from '../lib/reports.js';
@@ -12,7 +12,7 @@ const TYPES = [
   { id: 'capacity', label: 'Capacity Plan', desc: 'Demand vs. supply by discipline with FTE gaps', icon: Gauge },
 ];
 
-export default function Reports() {
+export default function Reports({ openModal }) {
   const { data, derived, actions } = useStore();
   const [type, setType] = useState('portfolio');
   const [pid, setPid] = useState(data.projects[0]?.id || '');
@@ -54,6 +54,7 @@ export default function Reports() {
   return (
     <>
       <TopBar title="Reports" crumbs="Generate, preview and export">
+        <button className="btn sm" onClick={() => openModal({ type: 'xlsx' })}><FileSpreadsheet size={14} />WBS & Workload Excel</button>
         <button className="btn sm" onClick={tasksCsv}><Table size={14} />All tasks CSV</button>
         <button className="btn sm" onClick={htmlExport}><Code2 size={14} />HTML</button>
         <button className="btn primary sm" onClick={pdf}><FileDown size={14} />Export PDF</button>
@@ -67,6 +68,10 @@ export default function Reports() {
                 <div><div className="bold">{t.label}</div><div className="small muted">{t.desc}</div></div>
               </div>
             ))}
+            <div className="r-item" onClick={() => openModal({ type: 'xlsx' })}>
+              <FileSpreadsheet size={16} style={{ marginTop: 2, color: '#107c41' }} />
+              <div><div className="bold">WBS & Workload (Excel)</div><div className="small muted">Task Plan + Gantt, Resource Map harian, Ringkasan — .xlsx dengan rumus</div></div>
+            </div>
             {type === 'project' && (
               <div style={{ padding: '8px 6px' }}>
                 <select className="input" value={pid} onChange={(e) => setPid(e.target.value)}>

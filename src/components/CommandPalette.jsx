@@ -13,6 +13,7 @@ export default function CommandPalette({ onClose, openModal }) {
     const cmds = [
       { icon: Plus, label: 'New project', run: () => openModal({ type: 'project' }) },
       { icon: Plus, label: 'New task', run: () => openModal({ type: 'task' }) },
+      { icon: ArrowRight, label: 'Export WBS & Workload (Excel)', run: () => openModal({ type: 'xlsx' }) },
       ...['Dashboard', 'Projects', 'Tasks', 'Workload', 'Capacity', 'Team', 'Reports', 'Settings']
         .map((v) => ({ icon: ArrowRight, label: `Go to ${v}`, run: () => navigate(v.toLowerCase()) })),
     ];
