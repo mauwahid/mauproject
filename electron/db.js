@@ -5,7 +5,7 @@
  */
 const Database = require('better-sqlite3');
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS settings (
@@ -111,10 +111,32 @@ CREATE TABLE IF NOT EXISTS comments (
 );
 `;
 
+/** v2: spaces group projects; dashboards store widget layouts per home / space / project. */
+const SCHEMA_V2 = `
+CREATE TABLE IF NOT EXISTS spaces (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  name        TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  color       TEXT NOT NULL DEFAULT '#4f46e5',
+  icon        TEXT NOT NULL DEFAULT 'layers',
+  sort_order  REAL NOT NULL DEFAULT 0,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS dashboards (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  scope_type TEXT NOT NULL,
+  scope_id   INTEGER NOT NULL DEFAULT 0,
+  widgets    TEXT NOT NULL DEFAULT '[]',
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(scope_type, scope_id)
+);
+`;
+
 /** Whitelisted tables and writable columns. */
 const TABLES = {
   projects: ['code', 'name', 'description', 'manager', 'client', 'status', 'priority', 'health',
-    'start_date', 'target_date', 'budget', 'color', 'archived'],
+    'start_date', 'target_date', 'budget', 'color', 'archived', 'space_id'],
+  spaces: ['name', 'description', 'color', 'icon', 'sort_order'],
   tasks: ['project_id', 'parent_id', 'sort_order', 'name', 'description', 'status', 'priority',
     'discipline', 'start_date', 'duration', 'progress', 'is_milestone', 'schedule_mode',
     'estimate_hours', 'tags', 'baseline_start', 'baseline_finish'],
@@ -159,10 +181,23 @@ class MauProjectDB {
 
   migrate() {
     const version = this.db.pragma('user_version', { simple: true });
-    if (version < SCHEMA_VERSION) {
-      this.db.exec(SCHEMA);
-      this.db.pragma(`user_version = ${SCHEMA_VERSION}`);
+    if (version < 1) this.db.exec(SCHEMA);
+    if (version < 2) {
+      this.db.transaction(() => {
+        this.db.exec(SCHEMA_V2);
+        const cols = this.db.prepare('PRAGMA table_info(projects)').all().map((c) => c.name);
+        if (!cols.includes('space_id')) {
+          this.db.exec('ALTER TABLE projects ADD COLUMN space_id INTEGER REFERENCES spaces(id) ON DELETE SET NULL');
+        }
+        // Existing workspaces: put current projects into a default space.
+        const n = this.db.prepare('SELECT COUNT(*) AS n FROM projects').get().n;
+        if (n > 0 && this.db.prepare('SELECT COUNT(*) AS n FROM spaces').get().n === 0) {
+          const id = this.db.prepare("INSERT INTO spaces(name, description, color, sort_order) VALUES ('General', 'Default space for existing projects', '#4f46e5', 1)").run().lastInsertRowid;
+          this.db.prepare('UPDATE projects SET space_id = ? WHERE space_id IS NULL').run(id);
+        }
+      })();
     }
+    if (version < SCHEMA_VERSION) this.db.pragma(`user_version = ${SCHEMA_VERSION}`);
     const ins = this.db.prepare('INSERT OR IGNORE INTO settings(key, value) VALUES (?, ?)');
     for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) ins.run(k, v);
   }
@@ -218,6 +253,8 @@ class MauProjectDB {
     for (const r of this.db.prepare('SELECT key, value FROM settings').all()) settings[r.key] = r.value;
     return {
       settings,
+      spaces: this.db.prepare('SELECT * FROM spaces ORDER BY sort_order, id').all(),
+      dashboards: this.db.prepare('SELECT * FROM dashboards').all(),
       projects: this.list('projects'),
       tasks: this.db.prepare('SELECT * FROM tasks ORDER BY project_id, sort_order, id').all(),
       dependencies: this.list('dependencies'),
@@ -231,6 +268,25 @@ class MauProjectDB {
   setSetting(key, value) {
     this.db.prepare('INSERT INTO settings(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
       .run(String(key), String(value));
+    return true;
+  }
+
+  /** Upsert the widget layout for a dashboard scope ('home' | 'space' | 'project'). */
+  saveDashboard(scopeType, scopeId, widgets) {
+    if (!['home', 'space', 'project'].includes(scopeType)) throw new Error('Invalid dashboard scope');
+    this.db.prepare(`INSERT INTO dashboards(scope_type, scope_id, widgets, updated_at) VALUES (?, ?, ?, datetime('now'))
+      ON CONFLICT(scope_type, scope_id) DO UPDATE SET widgets = excluded.widgets, updated_at = excluded.updated_at`)
+      .run(scopeType, Number(scopeId) || 0, JSON.stringify(widgets || []));
+    return this.db.prepare('SELECT * FROM dashboards WHERE scope_type = ? AND scope_id = ?').get(scopeType, Number(scopeId) || 0);
+  }
+
+  /** Delete a space; its projects move to "no space"; its dashboard is removed. */
+  deleteSpace(id) {
+    this.db.transaction(() => {
+      this.db.prepare('UPDATE projects SET space_id = NULL WHERE space_id = ?').run(id);
+      this.db.prepare("DELETE FROM dashboards WHERE scope_type = 'space' AND scope_id = ?").run(id);
+      this.db.prepare('DELETE FROM spaces WHERE id = ?').run(id);
+    })();
     return true;
   }
 
@@ -268,7 +324,8 @@ class MauProjectDB {
   /** Wipe all user data (keeps settings, resets the seeded flag). */
   reset() {
     this.db.exec(`DELETE FROM comments; DELETE FROM assignments; DELETE FROM dependencies; DELETE FROM tasks;
-      DELETE FROM projects; DELETE FROM time_off; DELETE FROM resources; DELETE FROM holidays;`);
+      DELETE FROM projects; DELETE FROM time_off; DELETE FROM resources; DELETE FROM holidays;
+      DELETE FROM dashboards; DELETE FROM spaces;`);
     this.setSetting('seeded', '1');
     return true;
   }
@@ -279,8 +336,10 @@ class MauProjectDB {
       const rmap = new Map();
       for (const r of ds.resources || []) rmap.set(r.key, this.create('resources', r).id);
       for (const h of ds.holidays || []) this.db.prepare('INSERT OR IGNORE INTO holidays(date, name) VALUES (?, ?)').run(h.date, h.name);
+      const smap = new Map();
+      for (const sp of ds.spaces || []) smap.set(sp.key, this.create('spaces', sp).id);
       for (const p of ds.projects || []) {
-        const np = this.create('projects', p);
+        const np = this.create('projects', { ...p, space_id: p.space ? smap.get(p.space) : p.space_id ?? null });
         const tmap = new Map();
         for (const t of p.tasks || []) {
           const nt = this.create('tasks', { ...t, project_id: np.id, parent_id: t.parent ? tmap.get(t.parent) : null });

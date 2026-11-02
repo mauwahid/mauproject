@@ -176,7 +176,13 @@ export function buildSampleData(today, currency = 'USD') {
   const timeOff = [{ r: 'daniel', start_date: addDays(wk, 14), end_date: addDays(wk, 18), reason: 'Vacation' }];
 
   for (const p of [atlas, orion, plant, helios]) p.budget *= fx;
-  return { resources, holidays, timeOff, projects: [atlas, orion, plant, helios] };
+  const spaces = [
+    { key: 'hw', name: 'Product Engineering', description: 'Hardware products from concept to certification', color: '#4f46e5', sort_order: 1 },
+    { key: 'sw', name: 'Platform & Software', description: 'Firmware platform, cloud and tooling', color: '#10b981', sort_order: 2 },
+    { key: 'ops', name: 'Manufacturing & Operations', description: 'Factory automation and production readiness', color: '#f59e0b', sort_order: 3 },
+  ];
+  atlas.space = 'hw'; helios.space = 'hw'; orion.space = 'sw'; plant.space = 'ops';
+  return { spaces, resources, holidays, timeOff, projects: [atlas, orion, plant, helios] };
 }
 
 /**

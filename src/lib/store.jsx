@@ -13,6 +13,7 @@ export function useStore() {
 }
 
 const COLL = {
+  spaces: 'spaces',
   projects: 'projects',
   tasks: 'tasks',
   dependencies: 'dependencies',
@@ -199,6 +200,7 @@ export function StoreProvider({ children }) {
         commit({
           ...d,
           projects: d.projects.filter((p) => p.id !== id),
+          dashboards: d.dashboards.filter((x) => !(x.scope_type === 'project' && x.scope_id === id)),
           tasks: d.tasks.filter((t) => !tids.has(t.id)),
           dependencies: d.dependencies.filter((x) => x.project_id !== id),
           assignments: d.assignments.filter((a) => !tids.has(a.task_id)),
@@ -328,6 +330,34 @@ export function StoreProvider({ children }) {
         await api.db.remove('dependencies', id);
         patch('dependencies', (l) => l.filter((x) => x.id !== id));
         if (dep) await reschedule(dep.project_id);
+      },
+
+      // spaces
+      async createSpace(sp) {
+        const so = ref.current.spaces.reduce((m, x) => Math.max(m, x.sort_order), 0) + 1;
+        return create('spaces', { sort_order: so, ...sp });
+      },
+      updateSpace: (id, sp) => update('spaces', id, sp),
+      async deleteSpace(id) {
+        await api.db.deleteSpace(id);
+        const d = ref.current;
+        commit({
+          ...d,
+          spaces: d.spaces.filter((x) => x.id !== id),
+          projects: d.projects.map((p) => (p.space_id === id ? { ...p, space_id: null } : p)),
+          dashboards: d.dashboards.filter((x) => !(x.scope_type === 'space' && x.scope_id === id)),
+        });
+      },
+
+      // dashboards
+      dashboardFor(scopeType, scopeId) {
+        const row = ref.current.dashboards.find((x) => x.scope_type === scopeType && x.scope_id === (Number(scopeId) || 0));
+        if (!row) return null;
+        try { return JSON.parse(row.widgets); } catch { return null; }
+      },
+      async saveDashboard(scopeType, scopeId, widgets) {
+        const row = await api.db.saveDashboard(scopeType, scopeId, widgets);
+        patch('dashboards', (l) => [...l.filter((x) => !(x.scope_type === row.scope_type && x.scope_id === row.scope_id)), row]);
       },
 
       // resources

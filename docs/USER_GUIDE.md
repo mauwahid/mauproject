@@ -9,6 +9,13 @@
 4. **Assign people** — double-click a task (or press Enter) and add assignees with % allocation.
 5. **Save a baseline** — click **Baseline** in the project header; enable *Baseline* in the Gantt toolbar to compare.
 
+## Spaces and dashboards
+- **Spaces** group projects. Create one with the **+** next to *Spaces* in the sidebar (or ⌘K → New space).
+  Pick a space when creating a project, or use a project card's **⋯ → Move to …**. Deleting a space keeps its projects (they move to *No space*).
+- Every space and project opens on its **Dashboard**. Click **Add chart** to add a widget, or **Customize** to:
+  drag widgets to reorder, change width (¼, ⅓, ½, ⅔, full), open ⚙ settings (title, metric, grouping, horizon), duplicate or remove.
+  **Reset** restores the default layout. Changes are saved automatically.
+
 ## Scheduling rules
 - Durations are in working days, using the calendar in **Settings** (working days, hours/day, holidays).
 - Tasks with predecessors are scheduled automatically (as soon as possible). Dragging such a task pins it to

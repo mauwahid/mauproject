@@ -123,3 +123,86 @@ export function UtilBars({ rows }) {
     </div>
   );
 }
+
+/** Horizontal bar list. rows: [{ key, label, value, color, marker?, right? }] */
+export function HBars({ rows, format = (v) => Math.round(v), max: maxIn, empty = 'No data' }) {
+  if (!rows.length) return <div className="faint small">{empty}</div>;
+  const max = maxIn || Math.max(1, ...rows.map((r) => Math.max(r.value, r.marker || 0)));
+  return (
+    <div className="col" style={{ gap: 9 }}>
+      {rows.map((r) => (
+        <div key={r.key} className="row small" title={r.title}>
+          <div style={{ width: 140 }} className="ellipsis">{r.label}</div>
+          <div className="grow" style={{ position: 'relative', height: 10, background: '#eef0f4', borderRadius: 99 }}>
+            <div style={{ width: `${Math.min(100, (r.value / max) * 100)}%`, height: '100%', background: r.color || 'var(--brand)', borderRadius: 99 }} />
+            {r.marker !== undefined && <div title="Plan" style={{ position: 'absolute', left: `${Math.min(100, (r.marker / max) * 100)}%`, top: -3, bottom: -3, borderLeft: '2px solid #111827' }} />}
+          </div>
+          <div style={{ minWidth: 64, textAlign: 'right', fontWeight: 650 }}>{r.right ?? format(r.value)}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Stacked horizontal bars: rows [{key,label,parts:[{value,color,label}]}] */
+export function StackedHBars({ rows, empty = 'No data' }) {
+  if (!rows.length) return <div className="faint small">{empty}</div>;
+  const max = Math.max(1, ...rows.map((r) => r.parts.reduce((s, p) => s + p.value, 0)));
+  return (
+    <div className="col" style={{ gap: 9 }}>
+      {rows.map((r) => {
+        const total = r.parts.reduce((s, p) => s + p.value, 0);
+        return (
+          <div key={r.key} className="row small">
+            <div style={{ width: 140 }} className="ellipsis">{r.label}</div>
+            <div className="grow" style={{ display: 'flex', height: 12, background: '#eef0f4', borderRadius: 99, overflow: 'hidden' }}>
+              {r.parts.map((p, i) => p.value > 0 && <div key={i} title={`${p.label}: ${p.value}`} style={{ width: `${(p.value / max) * 100}%`, background: p.color }} />)}
+            </div>
+            <div style={{ width: 34, textAlign: 'right', fontWeight: 650 }}>{total}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Responsive line chart. series: [{ key, label, color, dashed, points:[{x: label, y}] }] sharing x labels. */
+export function LineChart({ labels, series, height = 200, format = (v) => Math.round(v), markerIndex }) {
+  const wrapRef = useRef(null);
+  const [cw, setCw] = useState(500);
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return undefined;
+    const ro = new ResizeObserver(([e]) => setCw(Math.floor(e.contentRect.width)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const W = Math.max(cw, 260), H = height, pad = { l: 44, r: 12, t: 10, b: 24 };
+  const vals = series.flatMap((s) => s.points.filter((p) => p != null && p.y != null).map((p) => p.y));
+  const max = Math.max(1, ...vals) * 1.1;
+  const n = Math.max(labels.length - 1, 1);
+  const x = (i) => pad.l + ((W - pad.l - pad.r) * i) / n;
+  const y = (v) => pad.t + (H - pad.t - pad.b) * (1 - v / max);
+  const step = Math.ceil(labels.length / Math.max(2, Math.floor((W - 60) / 60)));
+  return (
+    <div ref={wrapRef} className="chart-wrap">
+      <svg width={W} height={H}>
+        {[0, 1, 2, 3, 4].map((i) => {
+          const v = (max / 4) * i;
+          return <g key={i}><line x1={pad.l} x2={W - pad.r} y1={y(v)} y2={y(v)} stroke="#eef0f4" /><text x={pad.l - 6} y={y(v) + 4} fontSize="10" fill="#9ca3af" textAnchor="end">{format(v)}</text></g>;
+        })}
+        {labels.map((l, i) => i % step === 0 && <text key={i} x={x(i)} y={H - 6} fontSize="10" fill="#6b7280" textAnchor="middle">{l}</text>)}
+        {markerIndex != null && markerIndex >= 0 && <g><line x1={x(markerIndex)} x2={x(markerIndex)} y1={pad.t} y2={H - pad.b} stroke="#ef4444" strokeDasharray="3 3" /><text x={x(markerIndex) + 4} y={pad.t + 10} fontSize="10" fill="#ef4444">Today</text></g>}
+        {series.map((s) => {
+          const pts = s.points.map((p, i) => (p && p.y != null ? `${x(i)},${y(p.y)}` : null)).filter(Boolean);
+          return (
+            <g key={s.key}>
+              <polyline fill="none" stroke={s.color} strokeWidth="2" strokeDasharray={s.dashed ? '5 4' : undefined} points={pts.join(' ')} />
+              {s.dots && s.points.map((p, i) => p && p.y != null && <circle key={i} cx={x(i)} cy={y(p.y)} r="4" fill={s.color} />)}
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}

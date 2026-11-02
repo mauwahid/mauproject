@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   LayoutDashboard, FolderKanban, ListChecks, Users, BarChart3, Gauge, FileText, Settings as SettingsIcon,
+  ChevronRight, ChevronDown, Plus,
 } from 'lucide-react';
 import { useStore } from './lib/store.jsx';
 import { BrandMark, Avatar, ConfirmHost } from './components/ui.jsx';
@@ -9,6 +10,7 @@ import ProjectModal from './components/ProjectModal.jsx';
 import NewTaskModal from './components/NewTaskModal.jsx';
 import Dashboard from './views/Dashboard.jsx';
 import Projects from './views/Projects.jsx';
+import SpaceView, { SpaceModal } from './views/SpaceView.jsx';
 import ProjectWorkspace from './views/ProjectWorkspace.jsx';
 import Tasks from './views/Tasks.jsx';
 import Workload from './views/Workload.jsx';
@@ -35,15 +37,25 @@ const NAV_MORE = [
   { id: 'settings', label: 'Settings', icon: SettingsIcon },
 ];
 
-function Sidebar({ route }) {
+function Sidebar({ route, openModal }) {
   const { data } = useStore();
   const active = route[0];
+  const [folded, setFolded] = useState(() => new Set());
   const projects = data.projects.filter((p) => !p.archived && p.status !== 'cancelled');
+  const loose = projects.filter((p) => !p.space_id || !data.spaces.some((sp) => sp.id === p.space_id));
   const item = (n) => (
     <div key={n.id} className={`nav-item ${active === n.id ? 'active' : ''}`} onClick={() => navigate(n.id)}>
       <n.icon size={16} /><span className="label">{n.label}</span>
     </div>
   );
+  const projItem = (p) => (
+    <div key={p.id} className={`nav-item ${active === 'project' && Number(route[1]) === p.id ? 'active' : ''}`}
+      onClick={() => navigate(`project/${p.id}/dashboard`)}>
+      <span className="dot" style={{ background: p.color }} />
+      <span className="label">{p.name}</span>
+    </div>
+  );
+  const toggle = (id) => setFolded((f) => { const n = new Set(f); n.has(id) ? n.delete(id) : n.add(id); return n; });
   return (
     <aside className="sidebar">
       <div className="side-drag" />
@@ -58,14 +70,27 @@ function Sidebar({ route }) {
         {NAV.map(item)}
         <div className="nav-section">Resources</div>
         {NAV_RES.map(item)}
-        <div className="nav-section">Projects</div>
-        {projects.map((p) => (
-          <div key={p.id} className={`nav-item ${active === 'project' && Number(route[1]) === p.id ? 'active' : ''}`}
-            onClick={() => navigate(`project/${p.id}/gantt`)}>
-            <span className="dot" style={{ background: p.color }} />
-            <span className="label">{p.name}</span>
-          </div>
-        ))}
+        <div className="nav-section">Spaces<span className="add" title="New space" onClick={() => openModal({ type: 'space' })}><Plus size={13} /></span></div>
+        {data.spaces.map((sp) => {
+          const list = projects.filter((p) => p.space_id === sp.id);
+          const open = !folded.has(sp.id);
+          return (
+            <div key={sp.id}>
+              <div className={`nav-space ${active === 'space' && Number(route[1]) === sp.id ? 'active' : ''}`} onClick={() => navigate(`space/${sp.id}/dashboard`)}>
+                <span className="tw" onClick={(e) => { e.stopPropagation(); toggle(sp.id); }}>{open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}</span>
+                <span className="sq" style={{ background: sp.color }}>{sp.name.trim()[0]?.toUpperCase()}</span>
+                <span className="label ellipsis grow">{sp.name}</span>
+                <span className="faint tiny">{list.length}</span>
+              </div>
+              {open && <div className="nav-sub">{list.map(projItem)}</div>}
+            </div>
+          );
+        })}
+        {!data.spaces.length && <div className="nav-item" onClick={() => openModal({ type: 'space' })}><Plus size={14} /><span className="label">Create a space</span></div>}
+        {loose.length > 0 && <>
+          <div className="nav-section">{data.spaces.length ? 'No space' : 'Projects'}</div>
+          {loose.map(projItem)}
+        </>}
         <div className="nav-section">Insights</div>
         {NAV_MORE.map(item)}
       </div>
@@ -117,7 +142,8 @@ export default function App() {
   let view;
   switch (route[0]) {
     case 'projects': view = <Projects {...ctx} />; break;
-    case 'project': view = <ProjectWorkspace key={route[1]} {...ctx} projectId={Number(route[1])} tab={route[2] || 'gantt'} />; break;
+    case 'space': view = <SpaceView key={route[1]} {...ctx} spaceId={Number(route[1])} tab={route[2] || 'dashboard'} />; break;
+    case 'project': view = <ProjectWorkspace key={route[1]} {...ctx} projectId={Number(route[1])} tab={route[2] || 'dashboard'} />; break;
     case 'tasks': view = <Tasks {...ctx} />; break;
     case 'workload': view = <Workload {...ctx} />; break;
     case 'capacity': view = <Capacity {...ctx} />; break;
@@ -129,12 +155,13 @@ export default function App() {
 
   return (
     <div className="shell">
-      <Sidebar route={route} />
+      <Sidebar route={route} openModal={setModal} />
       <main className="main">
         {view}
       </main>
       {openTaskId && <TaskDrawer taskId={openTaskId} onClose={() => actions.openTask(null)} />}
-      {modal?.type === 'project' && <ProjectModal project={modal.project} onClose={() => setModal(null)} />}
+      {modal?.type === 'project' && <ProjectModal project={modal.project} spaceId={modal.spaceId || (route[0] === 'space' ? Number(route[1]) : undefined)} onClose={() => setModal(null)} />}
+      {modal?.type === 'space' && <SpaceModal space={modal.space} onClose={() => setModal(null)} />}
       {modal?.type === 'task' && <NewTaskModal projectId={modal.projectId} parentId={modal.parentId} onClose={() => setModal(null)} />}
       {modal?.type === 'xlsx' && <ExcelExportModal projectIds={modal.projectIds} onClose={() => setModal(null)} />}
       {palette && <CommandPalette onClose={() => setPalette(false)} openModal={setModal} />}

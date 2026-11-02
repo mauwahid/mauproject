@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld('mauproject', {
     bulkUpdate: invoke('db:bulkUpdate'),
     setSetting: invoke('db:setSetting'),
     comments: invoke('db:comments'),
+    saveDashboard: invoke('db:saveDashboard'),
+    deleteSpace: invoke('db:deleteSpace'),
     duplicateProject: invoke('db:duplicateProject'),
     importDataset: invoke('db:importDataset'),
     reset: invoke('db:reset'),

@@ -1,17 +1,37 @@
 import React, { useState } from 'react';
-import { LayoutGrid, Table2, MoreHorizontal, Pencil, Copy, Archive, Trash2, FolderKanban, ArchiveRestore } from 'lucide-react';
+import { LayoutGrid, Table2, MoreHorizontal, Pencil, Copy, Archive, Trash2, FolderKanban, ArchiveRestore, Layers } from 'lucide-react';
 import { useStore } from '../lib/store.jsx';
 import { TopBar, NewButton, navigate } from '../components/layout.jsx';
 import { HealthPill, ProjectStatusPill, PriorityPill, Progress, AvatarStack, Empty, ContextMenu, Segmented, confirmDialog } from '../components/ui.jsx';
 import { PROJECT_STATUSES, fmtDate, fmtMoney } from '../lib/format.js';
 
 export default function Projects({ openModal }) {
+  const { data } = useStore();
+  return (
+    <>
+      <TopBar title="Projects" crumbs={`${data.projects.length} projects in ${data.spaces.length} space${data.spaces.length === 1 ? '' : 's'}`}>
+        <NewButton label="New Project" onClick={() => openModal({ type: 'project' })} />
+      </TopBar>
+      <div className="content">
+        <ProjectsBody openModal={openModal} />
+      </div>
+    </>
+  );
+}
+
+/** Project list (cards/table). With spaceId, limited to that space. */
+export function ProjectsBody({ openModal, spaceId }) {
   const { data, derived, actions } = useStore();
   const [mode, setMode] = useState('grid');
   const [filter, setFilter] = useState('open');
+  const [spaceFilter, setSpaceFilter] = useState('');
   const [menu, setMenu] = useState(null);
+  const spaceById = new Map(data.spaces.map((x) => [x.id, x]));
 
   const list = data.projects.filter((p) => {
+    if (spaceId && p.space_id !== spaceId) return false;
+    if (!spaceId && spaceFilter === 'none' && p.space_id) return false;
+    if (!spaceId && spaceFilter && spaceFilter !== 'none' && p.space_id !== Number(spaceFilter)) return false;
     if (filter === 'archived') return p.archived;
     if (p.archived) return false;
     if (filter === 'open') return !['completed', 'cancelled'].includes(p.status);
@@ -30,6 +50,7 @@ export default function Projects({ openModal }) {
     setMenu({
       x: e.clientX, y: e.clientY, items: [
         { label: 'Edit project', icon: Pencil, onClick: () => openModal({ type: 'project', project: p }) },
+        ...data.spaces.filter((sp) => sp.id !== p.space_id).map((sp) => ({ label: `Move to ${sp.name}`, icon: Layers, onClick: () => actions.updateProject(p.id, { space_id: sp.id }) })),
         { label: 'Duplicate', icon: Copy, onClick: async () => { await actions.duplicateProject(p.id); actions.toast('Project duplicated', 'success'); } },
         p.archived
           ? { label: 'Restore', icon: ArchiveRestore, onClick: () => actions.updateProject(p.id, { archived: 0 }) }
@@ -47,11 +68,15 @@ export default function Projects({ openModal }) {
 
   return (
     <>
-      <TopBar title="Projects" crumbs={`${data.projects.length} projects in workspace`}>
-        <NewButton label="New Project" onClick={() => openModal({ type: 'project' })} />
-      </TopBar>
-      <div className="content">
-        <div className="row mb16">
+      <div>
+        <div className="row mb16 wrap">
+          {!spaceId && (
+            <select className="input sm" style={{ width: 190 }} value={spaceFilter} onChange={(e) => setSpaceFilter(e.target.value)}>
+              <option value="">All spaces</option>
+              {data.spaces.map((sp) => <option key={sp.id} value={sp.id}>{sp.name}</option>)}
+              <option value="none">No space</option>
+            </select>
+          )}
           <Segmented value={filter} onChange={setFilter} options={[
             { value: 'open', label: 'Open' }, ...PROJECT_STATUSES.map((s) => ({ value: s.id, label: s.label })),
             { value: 'all', label: 'All' }, { value: 'archived', label: 'Archived' },
@@ -60,17 +85,18 @@ export default function Projects({ openModal }) {
           <Segmented value={mode} onChange={setMode} options={[{ value: 'grid', icon: LayoutGrid, label: 'Cards' }, { value: 'table', icon: Table2, label: 'Table' }]} />
         </div>
 
-        {!list.length && <Empty icon={FolderKanban} title="No projects here" action={<button className="btn primary" onClick={() => openModal({ type: 'project' })}>New Project</button>}>Create a project to start building its WBS and schedule.</Empty>}
+        {!list.length && <Empty icon={FolderKanban} title="No projects here" action={<button className="btn primary" onClick={() => openModal({ type: 'project', spaceId })}>New Project</button>}>Create a project to start building its WBS and schedule.</Empty>}
 
         {mode === 'grid' ? (
           <div className="proj-grid">
             {list.map((p) => {
               const s = derived.projectStats.get(p.id);
               return (
-                <div key={p.id} className="card proj-card" onClick={() => navigate(`project/${p.id}/gantt`)}>
+                <div key={p.id} className="card proj-card" onClick={() => navigate(`project/${p.id}/dashboard`)}>
                   <div className="stripe" style={{ background: p.color }} />
                   <div className="row">
                     <span className="code">{p.code || 'PROJECT'}</span>
+                    {!spaceId && spaceById.get(p.space_id) && <span className="tag" style={{ background: spaceById.get(p.space_id).color + '1f', color: spaceById.get(p.space_id).color }}>{spaceById.get(p.space_id).name}</span>}
                     <div className="grow" />
                     <HealthPill health={s.health} />
                     <button className="btn ghost sm icon" onClick={(e) => openMenu(e, p)}><MoreHorizontal size={15} /></button>
@@ -96,14 +122,15 @@ export default function Projects({ openModal }) {
         ) : list.length > 0 && (
           <div className="card">
             <table className="tbl">
-              <thead><tr><th>Code</th><th>Project</th><th>Manager</th><th>Status</th><th>Health</th><th>Progress</th><th>Start</th><th>Finish</th><th>Target</th><th className="num">Budget</th><th className="num">Planned cost</th><th /></tr></thead>
+              <thead><tr><th>Code</th><th>Project</th>{!spaceId && <th>Space</th>}<th>Manager</th><th>Status</th><th>Health</th><th>Progress</th><th>Start</th><th>Finish</th><th>Target</th><th className="num">Budget</th><th className="num">Planned cost</th><th /></tr></thead>
               <tbody>
                 {list.map((p) => {
                   const s = derived.projectStats.get(p.id);
                   return (
-                    <tr key={p.id} className="click" onClick={() => navigate(`project/${p.id}/gantt`)}>
+                    <tr key={p.id} className="click" onClick={() => navigate(`project/${p.id}/dashboard`)}>
                       <td className="faint bold">{p.code}</td>
                       <td><div className="row"><span style={{ width: 8, height: 8, borderRadius: 3, background: p.color }} /><b>{p.name}</b></div></td>
+                      {!spaceId && <td className="small">{spaceById.get(p.space_id)?.name || <span className="faint">—</span>}</td>}
                       <td>{p.manager}</td>
                       <td><ProjectStatusPill status={p.status} /></td>
                       <td><HealthPill health={s.health} /></td>

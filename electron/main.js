@@ -68,11 +68,17 @@ function runScreenshots(dir) {
   wc.once('did-finish-load', async () => {
     const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     await wait(1500);
-    for (const r of routes) {
+    for (const spec of routes) {
+      // "route|button text|button text" navigates, then clicks buttons by their visible text
+      const [r, ...clicks] = spec.split('|');
       await wc.executeJavaScript(`window.location.hash = '#/${r}'`);
       await wait(900);
+      for (const label of clicks) {
+        await wc.executeJavaScript(`(() => { const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim() === ${JSON.stringify(label)}); if (b) b.click(); return !!b; })()`);
+        await wait(600);
+      }
       const img = await wc.capturePage();
-      fs.writeFileSync(path.join(dir, r.replace(/\//g, '_') + '.png'), img.toPNG());
+      fs.writeFileSync(path.join(dir, spec.replace(/[\/| ]/g, '_') + '.png'), img.toPNG());
     }
     if (process.env.MAUPROJECT_XLSX_OUT) {
       wc.send('menu:action', 'export-xlsx');
@@ -158,6 +164,8 @@ function registerIpc() {
   handle('db:bulkUpdate', (table, items) => db.bulkUpdate(table, items));
   handle('db:setSetting', (k, v) => db.setSetting(k, v));
   handle('db:comments', (taskId) => db.commentsFor(taskId));
+  handle('db:saveDashboard', (t, id, w) => db.saveDashboard(t, id, w));
+  handle('db:deleteSpace', (id) => db.deleteSpace(id));
   handle('db:duplicateProject', (id) => db.duplicateProject(id));
   handle('db:importDataset', (ds) => db.importDataset(ds));
   handle('db:reset', () => db.reset());

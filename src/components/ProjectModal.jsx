@@ -5,26 +5,26 @@ import { PROJECT_STATUSES, PRIORITIES, PALETTE } from '../lib/format.js';
 import { todayISO, addDays } from '../lib/calendar.js';
 import { navigate } from './layout.jsx';
 
-export default function ProjectModal({ project, onClose }) {
+export default function ProjectModal({ project, spaceId, onClose }) {
   const { data, actions } = useStore();
   const editing = !!project;
   const [f, setF] = useState(() => project ? { ...project } : {
     name: '', code: '', description: '', manager: data.settings.userName || '', client: '',
     status: 'planning', priority: 'medium', health: 'auto', start_date: todayISO(), target_date: addDays(todayISO(), 90),
-    budget: 0, color: PALETTE[data.projects.length % PALETTE.length],
+    budget: 0, color: PALETTE[data.projects.length % PALETTE.length], space_id: spaceId || data.spaces[0]?.id || null,
   });
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
 
   const save = async () => {
     if (!f.name.trim()) return actions.toast('Project name is required', 'warn');
-    const payload = { ...f, budget: Number(f.budget) || 0, name: f.name.trim() };
+    const payload = { ...f, budget: Number(f.budget) || 0, name: f.name.trim(), space_id: f.space_id ? Number(f.space_id) : null };
     if (editing) {
       await actions.updateProject(project.id, payload);
       actions.toast('Project updated', 'success');
     } else {
       const p = await actions.createProject(payload);
       actions.toast('Project created', 'success');
-      navigate(`project/${p.id}/gantt`);
+      navigate(`project/${p.id}/dashboard`);
     }
     onClose();
   };
@@ -38,6 +38,12 @@ export default function ProjectModal({ project, onClose }) {
         <Field label="Project name" className="span2"><input className="input" autoFocus value={f.name} onChange={set('name')} placeholder="e.g. Atlas EV Charger Gen 3" /></Field>
         <Field label="Code"><input className="input" value={f.code} onChange={set('code')} placeholder="ATL-300" /></Field>
         <Field label="Description" className="span3"><textarea className="input" value={f.description} onChange={set('description')} /></Field>
+        <Field label="Space">
+          <select className="input" value={f.space_id || ''} onChange={set('space_id')}>
+            <option value="">No space</option>
+            {data.spaces.map((sp) => <option key={sp.id} value={sp.id}>{sp.name}</option>)}
+          </select>
+        </Field>
         <Field label="Project manager"><input className="input" value={f.manager} onChange={set('manager')} /></Field>
         <Field label="Client / Business unit"><input className="input" value={f.client} onChange={set('client')} /></Field>
         <Field label="Budget"><input className="input" type="number" value={f.budget} onChange={set('budget')} /></Field>

@@ -13,9 +13,10 @@ import { computeWorkload, bucketLabel, utilClass } from '../lib/analytics.js';
 import { addDays } from '../lib/calendar.js';
 import { fmtDate, fmtMoney, fmtMoneyShort, fmtHours, fmtPct } from '../lib/format.js';
 import { projectReport } from '../lib/reports.js';
+import DashboardBoard from '../components/DashboardBoard.jsx';
 
 const TABS = [
-  { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'gantt', label: 'Gantt', icon: GanttChartSquare },
   { id: 'wbs', label: 'WBS', icon: Network },
   { id: 'board', label: 'Board', icon: Kanban },
@@ -23,9 +24,11 @@ const TABS = [
   { id: 'team', label: 'Team & Workload', icon: Users },
 ];
 
-export default function ProjectWorkspace({ projectId, tab, openModal }) {
+export default function ProjectWorkspace({ projectId, tab: tabIn, openModal }) {
   const { data, derived, actions } = useStore();
   const project = data.projects.find((p) => p.id === projectId);
+  const tab = tabIn === 'overview' ? 'dashboard' : tabIn;
+  const space = project && data.spaces.find((x) => x.id === project.space_id);
   if (!project) {
     return <><TopBar title="Project not found" /><div className="content"><Empty title="This project no longer exists" action={<button className="btn" onClick={() => navigate('projects')}>Back to projects</button>} /></div></>;
   }
@@ -41,7 +44,7 @@ export default function ProjectWorkspace({ projectId, tab, openModal }) {
 
   return (
     <>
-      <TopBar title={project.name} crumbs={<span style={{ cursor: 'pointer' }} onClick={() => navigate('projects')}>Projects / {project.code}</span>}
+      <TopBar title={project.name} crumbs={<span style={{ cursor: 'pointer' }} onClick={() => navigate(space ? `space/${space.id}/dashboard` : 'projects')}>{space ? space.name : 'Projects'} / {project.code}</span>}
         icon={<span style={{ width: 12, height: 32, borderRadius: 4, background: project.color }} />}>
         <HealthPill health={stats.health} />
         <ProjectStatusPill status={project.status} />
@@ -58,7 +61,7 @@ export default function ProjectWorkspace({ projectId, tab, openModal }) {
           </div>
         ))}
       </div>
-      {empty && tab !== 'overview' ? (
+      {empty && tab !== 'dashboard' ? (
         <div className="content">
           <Empty icon={GanttChartSquare} title="Start building the work breakdown" action={
             <button className="btn primary" onClick={() => actions.createTask({ project_id: project.id, name: 'Phase 1', duration: 5 })}><Plus size={14} />Add first task</button>
@@ -71,106 +74,19 @@ export default function ProjectWorkspace({ projectId, tab, openModal }) {
           {tab === 'board' && <Board project={project} />}
           {tab === 'list' && <TaskList projectId={project.id} />}
           {tab === 'team' && <ProjectTeam project={project} />}
-          {tab === 'overview' && <Overview project={project} stats={stats} />}
+          {tab === 'dashboard' && (
+            <>
+              {(project.description || space) && (
+                <p className="muted" style={{ marginTop: 0 }}>
+                  {space && <span className="tag" style={{ background: space.color + '1f', color: space.color, marginRight: 8, cursor: 'pointer' }} onClick={() => navigate(`space/${space.id}/dashboard`)}>{space.name}</span>}
+                  {project.description}
+                </p>
+              )}
+              <DashboardBoard key={`p${project.id}`} scopeType="project" scopeId={project.id} projectIds={[project.id]} />
+            </>
+          )}
         </div>
       )}
-    </>
-  );
-}
-
-function Overview({ project, stats }) {
-  const { data, derived, actions } = useStore();
-  const sched = derived.schedules.get(project.id);
-  const phases = sched.rows.filter((r) => r.level === 0);
-  const milestones = sched.rows.filter((r) => r.task.is_milestone);
-  const late = project.target_date && stats.finish && stats.finish > project.target_date;
-  const variance = project.target_date && stats.finish ? derived.cal.workdays(project.target_date, stats.finish) - 1 : 0;
-
-  const disc = useMemo(() => {
-    const m = new Map();
-    for (const r of sched.rows) {
-      if (r.isSummary) continue;
-      const k = r.task.discipline || 'Unspecified';
-      m.set(k, (m.get(k) || 0) + (Number(r.task.estimate_hours) || 0));
-    }
-    const max = Math.max(1, ...m.values());
-    return [...m.entries()].sort((a, b) => b[1] - a[1]).map(([k, v]) => ({ k, v, pct: v / max }));
-  }, [sched]);
-
-  return (
-    <>
-      <div className="kpis">
-        <div className="card kpi"><div className="k-label">Progress</div><div className="k-value">{stats.progress}%</div><div className="k-sub">planned {stats.expected}% by today</div></div>
-        <div className="card kpi"><div className="k-label">Forecast finish</div><div className="k-value" style={{ fontSize: 20, color: late ? 'var(--danger)' : undefined }}>{fmtDate(stats.finish)}</div>
-          <div className="k-sub">{project.target_date ? (late ? `${variance} working days past target` : 'on or before target') : 'no target set'}</div></div>
-        <div className="card kpi"><div className="k-label">Tasks</div><div className="k-value">{stats.done}/{stats.leaves}</div><div className="k-sub">{stats.overdue} overdue · {stats.blocked} blocked</div></div>
-        <div className="card kpi"><div className="k-label">Critical path</div><div className="k-value">{stats.critical}</div><div className="k-sub">tasks with zero slack</div></div>
-        <div className="card kpi"><div className="k-label">Planned cost</div><div className="k-value" style={{ fontSize: 20, color: project.budget && stats.cost > project.budget ? 'var(--danger)' : undefined }}>{fmtMoneyShort(stats.cost, data.settings.currency)}</div>
-          <div className="k-sub">budget {fmtMoney(project.budget, data.settings.currency)} · {fmtHours(stats.work)} work</div></div>
-      </div>
-      <div className="layout-2 mt16">
-        <div className="card">
-          <div className="card-h"><h3>Phases</h3></div>
-          <div className="card-b flush">
-            <table className="tbl">
-              <thead><tr><th>WBS</th><th>Phase</th><th>Start</th><th>Finish</th><th style={{ width: 180 }}>Progress</th></tr></thead>
-              <tbody>
-                {phases.map((r) => (
-                  <tr key={r.id} className="click" onClick={() => actions.openTask(r.id)}>
-                    <td className="faint">{r.wbs}</td><td className="bold">{r.task.name}</td>
-                    <td>{fmtDate(r.start)}</td><td>{fmtDate(r.finish)}</td>
-                    <td><div className="row"><Progress value={r.progress} color={project.color} width={110} /><span className="small">{r.progress}%</span></div></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-        <div className="card">
-          <div className="card-h"><h3>About</h3></div>
-          <div className="card-b col small">
-            <div className="muted" style={{ lineHeight: 1.5 }}>{project.description || 'No description.'}</div>
-            <div className="props" style={{ margin: 0, gridTemplateColumns: '110px 1fr' }}>
-              <label>Manager</label><span>{project.manager || '—'}</span>
-              <label>Client / BU</label><span>{project.client || '—'}</span>
-              <label>Start</label><span>{fmtDate(project.start_date)}</span>
-              <label>Target</label><span>{fmtDate(project.target_date)}</span>
-              <label>Priority</label><span style={{ textTransform: 'capitalize' }}>{project.priority}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div className="layout-even mt16">
-        <div className="card">
-          <div className="card-h"><Diamond size={14} /><h3>Milestones</h3></div>
-          <div className="card-b flush">
-            {milestones.length ? milestones.map((r) => {
-              const slip = r.task.baseline_finish && r.finish > r.task.baseline_finish ? derived.cal.workdays(r.task.baseline_finish, r.finish) - 1 : 0;
-              return (
-                <div key={r.id} className="row" style={{ padding: '9px 16px', borderBottom: '1px solid #f2f3f6', cursor: 'pointer' }} onClick={() => actions.openTask(r.id)}>
-                  <Diamond size={12} style={{ color: r.task.status === 'done' ? 'var(--ok)' : project.color, fill: r.task.status === 'done' ? 'var(--ok)' : project.color }} />
-                  <span className="grow bold small">{r.task.name}</span>
-                  {slip > 0 && <span className="tag" style={{ background: '#fee2e2', color: '#b91c1c' }}>+{slip}d vs baseline</span>}
-                  <span className="small muted">{fmtDate(r.start)}</span>
-                </div>
-              );
-            }) : <div className="faint" style={{ padding: 16 }}>No milestones defined.</div>}
-          </div>
-        </div>
-        <div className="card">
-          <div className="card-h"><h3>Estimated effort by discipline</h3></div>
-          <div className="card-b col" style={{ gap: 10 }}>
-            {disc.map((d) => (
-              <div key={d.k} className="row small">
-                <span style={{ width: 140 }} className="ellipsis">{d.k}</span>
-                <div className="grow" style={{ height: 10, background: '#eef0f4', borderRadius: 99 }}><div style={{ width: `${d.pct * 100}%`, height: '100%', background: project.color, borderRadius: 99 }} /></div>
-                <span style={{ width: 60 }} className="right bold">{fmtHours(d.v)}</span>
-              </div>
-            ))}
-            {!disc.length && <span className="faint">Add estimates to tasks to see effort by discipline.</span>}
-          </div>
-        </div>
-      </div>
     </>
   );
 }

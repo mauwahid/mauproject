@@ -11,16 +11,18 @@ export default function CommandPalette({ onClose, openModal }) {
   const items = useMemo(() => {
     const s = q.trim().toLowerCase();
     const cmds = [
+      { icon: Plus, label: 'New space', run: () => openModal({ type: 'space' }) },
       { icon: Plus, label: 'New project', run: () => openModal({ type: 'project' }) },
       { icon: Plus, label: 'New task', run: () => openModal({ type: 'task' }) },
       { icon: ArrowRight, label: 'Export WBS & Workload (Excel)', run: () => openModal({ type: 'xlsx' }) },
       ...['Dashboard', 'Projects', 'Tasks', 'Workload', 'Capacity', 'Team', 'Reports', 'Settings']
         .map((v) => ({ icon: ArrowRight, label: `Go to ${v}`, run: () => navigate(v.toLowerCase()) })),
     ];
+    const spaces = data.spaces.map((sp) => ({ icon: FolderKanban, label: sp.name, hint: 'Space', run: () => navigate(`space/${sp.id}/dashboard`) }));
     const projects = data.projects.map((p) => ({ icon: FolderKanban, label: p.name, hint: p.code, run: () => navigate(`project/${p.id}/gantt`) }));
     const people = data.resources.map((r) => ({ icon: User, label: r.name, hint: r.role, run: () => navigate(`workload`) }));
     const tasks = data.tasks.map((t) => ({ icon: CheckSquare, label: t.name, hint: data.projects.find((p) => p.id === t.project_id)?.code, run: () => actions.openTask(t.id) }));
-    const all = [...cmds, ...projects, ...people, ...tasks];
+    const all = [...cmds, ...spaces, ...projects, ...people, ...tasks];
     return (s ? all.filter((x) => `${x.label} ${x.hint || ''}`.toLowerCase().includes(s)) : all).slice(0, 40);
   }, [q, data, actions, openModal]);
 

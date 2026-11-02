@@ -16,6 +16,11 @@ engineering capacity planning in a single macOS desktop application.
 
 ## Features
 
+- **Spaces** — group projects into spaces (e.g. per department, squad or business unit); sidebar tree, move projects between spaces.
+- **Customizable dashboards** — every space and every project has its own dashboard. Add, remove, resize (¼ to full width),
+  reorder (drag & drop), duplicate and configure widgets: KPIs (13 metrics), task distribution, tasks by assignee,
+  progress vs plan, project health, burn-down, team utilization, weekly workload, timeline, cost/hours breakdown,
+  milestones, overdue, active & upcoming, and notes. Layouts are saved per space/project in `mauproject.db`.
 - **Portfolio dashboard** — project health (auto-computed), progress vs. plan, forecast vs. target, utilization, milestones, overdue work.
 - **Projects** — cards/table, status, priority, budget, duplicate, archive.
 - **Gantt (Microsoft Project–style)** — WBS outline with indent/outdent, inline editing, drag to move,
