@@ -1,0 +1,44 @@
+appId: com.mauproject.desktop
+productName: MauProject
+copyright: Copyright © 2026 MauProject
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**/*
+  - electron/**/*
+  - package.json
+  - "!**/*.map"
+asarUnpack:
+  - "**/node_modules/better-sqlite3/**"
+extraMetadata:
+  main: electron/main.js
+mac:
+  category: public.app-category.productivity
+  icon: build/icon.png
+  target:
+    - dmg
+  artifactName: MauProject-${arch}.${ext}
+  extendInfo:
+    CFBundleDisplayName: MauProject
+    CFBundleName: MauProject
+    NSHumanReadableCopyright: Copyright © 2026 MauProject
+dmg:
+  title: MauProject
+  artifactName: MauProject.dmg
+  contents:
+    - x: 140
+      y: 190
+    - x: 400
+      y: 190
+      type: link
+      path: /Applications
+win:
+  icon: build/icon.png
+  target: nsis
+  artifactName: MauProject-Setup.${ext}
+linux:
+  icon: build/icon.png
+  target: AppImage
+  category: Office
+  artifactName: MauProject.${ext}

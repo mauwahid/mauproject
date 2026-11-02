@@ -1,0 +1,66 @@
+# MauProject
+
+**Project Management & Engineering Resource Planning** for Engineering Managers.
+
+MauProject combines Microsoft Project–style scheduling, ClickUp-style task management and
+engineering capacity planning in a single macOS desktop application.
+
+| Identity | Value |
+|---|---|
+| Product name | MauProject |
+| Application ID | `com.mauproject.desktop` |
+| Window title | MauProject |
+| Database | `mauproject.db` (in `~/Library/Application Support/MauProject/`) |
+| macOS installer | `MauProject.dmg` |
+| Category | Project Management & Engineering Resource Planning |
+
+## Features
+
+- **Portfolio dashboard** — project health (auto-computed), progress vs. plan, forecast vs. target, utilization, milestones, overdue work.
+- **Projects** — cards/table, status, priority, budget, duplicate, archive.
+- **Gantt (Microsoft Project–style)** — WBS outline with indent/outdent, inline editing, drag to move,
+  drag edge to resize, drag-to-link dependencies (FS/SS/FF/SF + lag), automatic scheduling on a working-day calendar,
+  critical path, baselines and slippage, day/week/month zoom, target and today lines.
+- **WBS** — outline with rolled-up dates, progress, estimate, planned work and cost; tree diagram; CSV export.
+- **Board & List (ClickUp-style)** — Kanban drag-and-drop by status; grouped lists by status/assignee/priority/project with quick add.
+- **Task details** — status, priority, dates, duration, progress, discipline, estimate, assignees with % units,
+  dependencies, subtasks, description, comments.
+- **Workload** — resource × period heatmap across all projects, over-allocation detection, drill-down and one-click reassignment to people with free capacity.
+- **Capacity planning** — demand (assigned + unstaffed estimates) vs. supply by discipline, FTE gap per month, what-if hiring scenarios.
+- **Team** — roster, discipline, weekly capacity, cost rate, time off.
+- **Reports** — Portfolio Status, Project Status, Resource Utilization, Capacity Plan; export to PDF/HTML, plus CSV exports.
+- **Settings** — working days, hours/day, company holidays, currency, database backup.
+
+## Development
+
+```bash
+npm install          # also rebuilds better-sqlite3 for Electron
+npm run dev          # Vite + Electron with hot reload
+npm start            # production build, then launch
+npm test             # scheduling engine unit tests
+```
+
+## Build the macOS installer
+
+```bash
+npm run dist:mac     # → release/MauProject.dmg
+```
+
+The DMG targets the architecture of the build machine. The build is unsigned; for distribution,
+configure an Apple Developer ID via `CSC_LINK`/`CSC_KEY_PASSWORD` and notarization in `electron-builder.yml`.
+
+## Architecture
+
+```
+electron/main.js      main process: window, menu, IPC, PDF export
+electron/preload.js   secure bridge (window.mauproject)
+electron/db.js        SQLite schema + whitelisted data access (mauproject.db)
+src/lib/calendar.js   working-day calendar
+src/lib/scheduler.js  CPM scheduling engine (forward/backward pass, roll-ups)
+src/lib/analytics.js  workload and capacity calculations
+src/lib/reports.js    branded report generators
+src/views/            Dashboard, Projects, Project workspace (Gantt/WBS/Board/List/Team), Tasks, Workload, Capacity, Team, Reports, Settings
+```
+
+On first launch MauProject seeds a sample engineering portfolio (4 projects, 11 engineers) so every view has data.
+Use **Settings → Delete all data** to start clean.

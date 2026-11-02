@@ -1,0 +1,34 @@
+'use strict';
+const { contextBridge, ipcRenderer } = require('electron');
+
+const invoke = (ch) => (...args) => ipcRenderer.invoke(ch, ...args);
+
+contextBridge.exposeInMainWorld('mauproject', {
+  platform: process.platform,
+  db: {
+    loadAll: invoke('db:loadAll'),
+    create: invoke('db:create'),
+    update: invoke('db:update'),
+    remove: invoke('db:remove'),
+    bulkUpdate: invoke('db:bulkUpdate'),
+    setSetting: invoke('db:setSetting'),
+    comments: invoke('db:comments'),
+    duplicateProject: invoke('db:duplicateProject'),
+    importDataset: invoke('db:importDataset'),
+    reset: invoke('db:reset'),
+    info: invoke('db:info'),
+    backup: invoke('db:backup'),
+  },
+  files: {
+    saveText: invoke('file:saveText'),
+    exportPdf: invoke('report:pdf'),
+    reveal: invoke('shell:reveal'),
+  },
+  on(channel, cb) {
+    const allowed = ['menu:navigate', 'menu:action'];
+    if (!allowed.includes(channel)) return () => {};
+    const listener = (_e, payload) => cb(payload);
+    ipcRenderer.on(channel, listener);
+    return () => ipcRenderer.removeListener(channel, listener);
+  },
+});
