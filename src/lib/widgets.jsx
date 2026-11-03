@@ -202,7 +202,7 @@ function ProgressBars({ scope }) {
 
 // ---------- project health table ----------
 function HealthTable({ scope }) {
-  if (!scope.projects.length) return <Empty>No projects in this space yet.</Empty>;
+  if (!scope.projects.length) return <div className="faint small" style={{ padding: '4px 16px 12px' }}>No projects in this space yet.</div>;
   return (
     <table className="tbl">
       <thead><tr><th>Project</th><th>Health</th><th>Progress</th><th>Forecast</th><th>Target</th><th className="num">Overdue</th></tr></thead>
