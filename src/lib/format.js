@@ -26,7 +26,7 @@ export const HEALTH = {
   off_track: { label: 'Off Track', color: '#dc2626' },
   done: { label: 'Complete', color: '#64748b' },
 };
-export const DISCIPLINES = ['Systems', 'Mechanical', 'Electrical', 'Firmware', 'Software', 'QA / Test', 'Manufacturing', 'Project Management'];
+export const DISCIPLINES = ['Backend', 'Frontend', 'Android', 'iOS', 'QA / Test', 'Business Analysis', 'DevOps', 'Design', 'Project Management', 'Systems', 'Mechanical', 'Electrical', 'Firmware', 'Software', 'Manufacturing'];
 export const PALETTE = ['#4f46e5', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#64748b'];
 
 export const statusOf = (id) => TASK_STATUSES.find((s) => s.id === id) || TASK_STATUSES[0];

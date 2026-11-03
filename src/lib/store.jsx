@@ -408,6 +408,14 @@ export function StoreProvider({ children }) {
         commit({ ...ref.current, projects: pj, resources: rs });
       },
 
+      /** Import a parsed WBS & Workload workbook, then recompute schedules. */
+      async importPlan(plan, opts) {
+        const res = await api.files.applyImport(plan, opts);
+        await reload();
+        await rescheduleAll();
+        return res;
+      },
+
       // data management
       async loadSampleData() {
         await api.db.importDataset(buildSampleData(todayISO(), ref.current.settings.currency));

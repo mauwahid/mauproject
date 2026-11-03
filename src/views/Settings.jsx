@@ -8,7 +8,7 @@ import { fmtDate, fmtMoney, CURRENCIES, LOCALES } from '../lib/format.js';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-export default function Settings() {
+export default function Settings({ openModal }) {
   const { data, actions } = useStore();
   const [info, setInfo] = useState(null);
   const [hol, setHol] = useState({ date: '', name: '' });
@@ -117,6 +117,7 @@ export default function Settings() {
             <div className="row wrap">
               <button className="btn" onClick={async () => { const p = await window.mauproject.db.backup(); if (p) actions.toast('Backup saved', 'success'); }}><HardDriveDownload size={14} />Back up database…</button>
               {info && <button className="btn" onClick={() => window.mauproject.files.reveal(info.file)}><FolderOpen size={14} />Show in Finder</button>}
+              <button className="btn" onClick={() => openModal({ type: 'import' })}>Upload WBS & Workload (Excel)…</button>
               <button className="btn" onClick={() => actions.loadSampleData()}>Load sample portfolio</button>
               <div className="grow" />
               <button className="btn danger" onClick={async () => {

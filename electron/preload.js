@@ -25,6 +25,8 @@ contextBridge.exposeInMainWorld('mauproject', {
     saveText: invoke('file:saveText'),
     exportPdf: invoke('report:pdf'),
     exportXlsx: invoke('report:xlsx'),
+    pickImportXlsx: invoke('import:pickXlsx'),
+    applyImport: invoke('import:apply'),
     reveal: invoke('shell:reveal'),
     open: invoke('shell:open'),
   },

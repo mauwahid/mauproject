@@ -362,6 +362,136 @@ class MauProjectDB {
     return true;
   }
 
+  /**
+   * Import a parsed "WBS & Workload" workbook (see xlsx-import.js) in one transaction.
+   * opts: { codes: string[], projectMode: 'replace'|'new', updateResources: bool,
+   *         spaceMode: 'new'|'existing'|'none', spaceName, spaceId, palette: string[] }
+   */
+  importPlan(plan, opts) {
+    const PALETTE = opts.palette || ['#4f46e5', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#64748b'];
+    const settings = {};
+    for (const r of this.db.prepare('SELECT key, value FROM settings').all()) settings[r.key] = r.value;
+    let wdays = [1, 2, 3, 4, 5];
+    try { wdays = JSON.parse(settings.workingDays || '[1,2,3,4,5]'); } catch { /* default */ }
+    const wd = new Set(wdays);
+    const lc = (x) => String(x || '').trim().toLowerCase();
+    const result = { projectsCreated: 0, projectsUpdated: 0, tasks: 0, assignments: 0, resourcesCreated: 0, resourcesUpdated: 0, holidays: 0, spaceId: null, projectIds: [] };
+
+    const tx = this.db.transaction(() => {
+      // holidays first so working-day math matches
+      const insH = this.db.prepare('INSERT OR IGNORE INTO holidays(date, name) VALUES (?, ?)');
+      for (const h of plan.holidays || []) result.holidays += insH.run(h.date, h.name).changes;
+      const hol = new Set(this.db.prepare('SELECT date FROM holidays').all().map((h) => h.date));
+      const iso = (d) => d.toISOString().slice(0, 10);
+      const next = (s) => iso(new Date(Date.parse(s + 'T00:00:00Z') + 86400000));
+      const isWork = (s) => wd.has(new Date(s + 'T00:00:00Z').getUTCDay()) && !hol.has(s);
+      const workdays = (a, b) => { let n = 0; for (let d = a; d <= b; d = next(d)) if (isWork(d)) n++; return n; };
+
+      // resources
+      const resByName = new Map(this.list('resources').map((r) => [lc(r.name), r]));
+      let colorIdx = resByName.size;
+      for (const r of plan.resources || []) {
+        const cap = Math.round((Number(r.capPerDay) || 8) * wd.size * 10) / 10;
+        const ex = resByName.get(lc(r.name));
+        if (ex) {
+          if (opts.updateResources && !r.fromTaskPlan) {
+            const patch = { role: r.role || ex.role, capacity_hours: cap };
+            if (r.discipline && !ex.discipline) patch.discipline = r.discipline;
+            if (r.rate) patch.cost_rate = r.rate;
+            resByName.set(lc(r.name), this.update('resources', ex.id, patch));
+            result.resourcesUpdated++;
+          }
+        } else {
+          const row = this.create('resources', {
+            name: r.name, role: r.role || '', discipline: r.discipline || '', capacity_hours: cap,
+            cost_rate: r.rate || 0, color: PALETTE[colorIdx++ % PALETTE.length], active: 1,
+          });
+          resByName.set(lc(r.name), row);
+          result.resourcesCreated++;
+        }
+      }
+
+      // space
+      let spaceId = null;
+      if (opts.spaceMode === 'new') {
+        const so = (this.db.prepare('SELECT MAX(sort_order) AS m FROM spaces').get().m || 0) + 1;
+        spaceId = this.create('spaces', { name: opts.spaceName || plan.source || 'Imported', description: `Imported from ${plan.source}`, color: '#0ea5e9', sort_order: so }).id;
+      } else if (opts.spaceMode === 'existing' && opts.spaceId) spaceId = Number(opts.spaceId);
+      result.spaceId = spaceId;
+
+      // projects + tasks
+      const existing = this.list('projects');
+      const wanted = new Set((opts.codes || plan.projects.map((p) => p.code)).map(lc));
+      let pIdx = existing.length;
+      for (const p of plan.projects) {
+        if (!wanted.has(lc(p.code))) continue;
+        const start = p.start || plan.period || new Date().toISOString().slice(0, 10);
+        const pct = p.tasks.length ? p.tasks.reduce((a, t) => a + t.pct, 0) / p.tasks.length : 0;
+        const fields = {
+          code: p.code, name: p.name || p.code,
+          description: p.version ? `Versi ${p.version}` : '',
+          start_date: start, target_date: p.finish || null,
+          status: pct >= 1 ? 'completed' : p.tasks.length ? 'active' : 'planning',
+        };
+        if (p.manager) fields.manager = p.manager;
+        if (p.budget) fields.budget = p.budget;
+        if (spaceId) fields.space_id = spaceId;
+        const match = opts.projectMode === 'replace' && existing.find((x) => lc(x.code) === lc(p.code) || (!x.code && lc(x.name) === lc(p.name)));
+        let projectId;
+        if (match) {
+          this.db.prepare('DELETE FROM tasks WHERE project_id = ?').run(match.id);
+          this.update('projects', match.id, fields);
+          projectId = match.id;
+          result.projectsUpdated++;
+        } else {
+          projectId = this.create('projects', { ...fields, priority: 'medium', health: 'auto', color: PALETTE[pIdx++ % PALETTE.length], space_id: spaceId }).id;
+          result.projectsCreated++;
+        }
+        result.projectIds.push(projectId);
+
+        // merge rows that are the same activity with several PICs
+        const groups = [];
+        const byKey = new Map();
+        for (const t of p.tasks) {
+          const key = `${t.wbs}|${lc(t.name)}|${t.start}|${t.finish}`;
+          if (t.wbs && byKey.has(key)) { byKey.get(key).pics.push(t); continue; }
+          const g = { ...t, pics: [t] };
+          groups.push(g);
+          if (t.wbs) byKey.set(key, g);
+        }
+        const idByWbs = new Map();
+        groups.forEach((g, i) => {
+          const parentWbs = g.wbs.includes('.') ? g.wbs.slice(0, g.wbs.lastIndexOf('.')) : '';
+          const parent_id = parentWbs.includes('.') ? idByWbs.get(parentWbs) || null : null;
+          const s = g.start || start;
+          const f = g.finish && g.finish >= s ? g.finish : s;
+          const dur = Math.max(1, workdays(s, f));
+          const people = g.pics.filter((x) => x.pic).map((x) => ({ res: resByName.get(lc(x.pic)), jam: x.jam }));
+          const total = g.pics.reduce((a, x) => a + (x.total != null ? x.total : (x.jam || 0) * dur), 0);
+          const tags = [g.delayed ? 'delayed' : '', g.start ? '' : 'belum dijadwalkan'].filter(Boolean).join(', ');
+          const task = this.create('tasks', {
+            project_id: projectId, parent_id, sort_order: i + 1, name: g.name, status: g.status,
+            progress: Math.round(g.pct * 100), start_date: s, duration: dur, schedule_mode: 'auto',
+            estimate_hours: Math.round(total * 10) / 10, tags, priority: 'medium',
+            discipline: (people[0] && people[0].res && people[0].res.discipline) || '',
+            description: g.statusText && !['done', 'in progress', 'not started'].includes(lc(g.statusText)) ? `Status di Excel: ${g.statusText}` : '',
+          });
+          if (g.wbs) idByWbs.set(g.wbs, task.id);
+          result.tasks++;
+          for (const pe of people) {
+            if (!pe.res) continue;
+            const hpd = (Number(pe.res.capacity_hours) || 40) / (wd.size || 5);
+            const units = pe.jam ? Math.max(5, Math.round((pe.jam / hpd) * 100)) : 100;
+            this.db.prepare('INSERT OR IGNORE INTO assignments(task_id, resource_id, units) VALUES (?, ?, ?)').run(task.id, pe.res.id, units);
+            result.assignments++;
+          }
+        });
+      }
+    });
+    tx();
+    return result;
+  }
+
   backupTo(dest) {
     return this.db.backup(dest);
   }

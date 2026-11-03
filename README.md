@@ -37,6 +37,10 @@ engineering capacity planning in a single macOS desktop application.
 - **Excel export (WBS & Workload)** — File → Export WBS & Workload (⌘E): a live, formula-driven `.xlsx` with
   *Petunjuk, Master, Hari Libur, Task Plan* (WBS blocks + daily Gantt), *Ringkasan* (utilization, overload days, cost)
   and *Resource Map* (hours per person per project per day, overload highlighting). Choose period and projects.
+- **Excel upload (WBS & Workload)** — File → Upload WBS & Workload (⌘U), Projects → *Upload Excel*, or Settings → Data.
+  Reads *Master* (projects, resources with capacity/day and rate), *Hari Libur* and *Task Plan* (WBS blocks: Aktivitas, PIC,
+  Mulai, Selesai, Jam/Hari, % Selesai, Status) from the BTN template or a MauProject export. Preview, pick projects and target
+  space, then import; re-importing the same file updates projects in place (their task plan is replaced).
 - **Currency & regional format** — IDR (Rupiah, `Rp 1.250.000`) is the default, with Indonesian date/number format;
   13 currencies supported, plus a one-click converter for existing budgets and cost rates (e.g. USD → IDR).
 - **Settings** — working days, hours/day, company holidays, currency & locale, database backup.

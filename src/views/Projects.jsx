@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LayoutGrid, Table2, MoreHorizontal, Pencil, Copy, Archive, Trash2, FolderKanban, ArchiveRestore, Layers } from 'lucide-react';
+import { LayoutGrid, Table2, MoreHorizontal, Pencil, Copy, Archive, Trash2, FolderKanban, ArchiveRestore, Layers, Upload } from 'lucide-react';
 import { useStore } from '../lib/store.jsx';
 import { TopBar, NewButton, navigate } from '../components/layout.jsx';
 import { HealthPill, ProjectStatusPill, PriorityPill, Progress, AvatarStack, Empty, ContextMenu, Segmented, confirmDialog } from '../components/ui.jsx';
@@ -10,6 +10,7 @@ export default function Projects({ openModal }) {
   return (
     <>
       <TopBar title="Projects" crumbs={`${data.projects.length} projects in ${data.spaces.length} space${data.spaces.length === 1 ? '' : 's'}`}>
+        <button className="btn sm" onClick={() => openModal({ type: 'import' })}><Upload size={14} />Upload Excel</button>
         <NewButton label="New Project" onClick={() => openModal({ type: 'project' })} />
       </TopBar>
       <div className="content">

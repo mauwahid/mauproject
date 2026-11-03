@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const { MauProjectDB } = require('./db');
 const { buildWorkbook } = require('./xlsx-export');
+const { parseWorkbook } = require('./xlsx-import');
 
 const APP_NAME = 'MauProject';
 const APP_ID = 'com.mauproject.desktop';
@@ -74,7 +75,7 @@ function runScreenshots(dir) {
       await wc.executeJavaScript(`window.location.hash = '#/${r}'`);
       await wait(900);
       for (const label of clicks) {
-        await wc.executeJavaScript(`(() => { const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim() === ${JSON.stringify(label)}); if (b) b.click(); return !!b; })()`);
+        await wc.executeJavaScript(`(() => { const b = [...document.querySelectorAll('button, .dash-add')].find((x) => x.textContent.trim() === ${JSON.stringify(label)}); if (b) b.click(); return !!b; })()`);
         await wait(600);
       }
       const img = await wc.capturePage();
@@ -119,6 +120,7 @@ function buildMenu() {
         { label: 'New Project…', accelerator: 'CmdOrCtrl+N', click: () => mainWindow.webContents.send('menu:action', 'new-project') },
         { label: 'New Task…', accelerator: 'CmdOrCtrl+T', click: () => mainWindow.webContents.send('menu:action', 'new-task') },
         { type: 'separator' },
+        { label: 'Upload WBS & Workload (Excel)…', accelerator: 'CmdOrCtrl+U', click: () => mainWindow.webContents.send('menu:action', 'import-xlsx') },
         { label: 'Export WBS & Workload (Excel)…', accelerator: 'CmdOrCtrl+E', click: () => mainWindow.webContents.send('menu:action', 'export-xlsx') },
         { label: 'Back Up Database…', click: () => mainWindow.webContents.send('menu:action', 'backup') },
         { type: 'separator' },
@@ -233,6 +235,21 @@ function registerIpc() {
     fs.writeFileSync(filePath, Buffer.from(buf));
     return filePath;
   });
+
+  handle('import:pickXlsx', async () => {
+    let file = process.env.MAUPROJECT_IMPORT_FILE; // non-interactive path for automated checks
+    if (!file) {
+      const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+        title: 'Upload WBS & Workload (Excel)',
+        properties: ['openFile'],
+        filters: [{ name: 'Excel Workbook', extensions: ['xlsx', 'xlsm', 'xls'] }],
+      });
+      if (canceled || !filePaths[0]) return null;
+      file = filePaths[0];
+    }
+    return parseWorkbook(file);
+  });
+  handle('import:apply', (plan, opts) => db.importPlan(plan, opts));
 
   handle('shell:reveal', (p) => shell.showItemInFolder(p));
   handle('shell:open', (p) => shell.openPath(p));

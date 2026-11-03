@@ -20,6 +20,7 @@ import Reports from './views/Reports.jsx';
 import Settings from './views/Settings.jsx';
 import CommandPalette from './components/CommandPalette.jsx';
 import ExcelExportModal from './components/ExcelExportModal.jsx';
+import ImportModal from './components/ImportModal.jsx';
 import { useRoute, navigate } from './components/layout.jsx';
 
 const NAV = [
@@ -114,6 +115,7 @@ export default function App() {
   const onMenuAction = useCallback(async (a) => {
     if (a === 'new-project') setModal({ type: 'project' });
     if (a === 'new-task') setModal({ type: 'task', projectId: route[0] === 'project' ? Number(route[1]) : null });
+    if (a === 'import-xlsx') setModal({ type: 'import' });
     if (a === 'export-xlsx') setModal({ type: 'xlsx', projectIds: route[0] === 'project' ? [Number(route[1])] : undefined });
     if (a === 'backup') {
       const p = await window.mauproject.db.backup();
@@ -163,6 +165,7 @@ export default function App() {
       {modal?.type === 'project' && <ProjectModal project={modal.project} spaceId={modal.spaceId || (route[0] === 'space' ? Number(route[1]) : undefined)} onClose={() => setModal(null)} />}
       {modal?.type === 'space' && <SpaceModal space={modal.space} onClose={() => setModal(null)} />}
       {modal?.type === 'task' && <NewTaskModal projectId={modal.projectId} parentId={modal.parentId} onClose={() => setModal(null)} />}
+      {modal?.type === 'import' && <ImportModal onClose={() => setModal(null)} />}
       {modal?.type === 'xlsx' && <ExcelExportModal projectIds={modal.projectIds} onClose={() => setModal(null)} />}
       {palette && <CommandPalette onClose={() => setPalette(false)} openModal={setModal} />}
       <ConfirmHost />

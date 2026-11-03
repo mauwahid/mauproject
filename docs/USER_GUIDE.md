@@ -47,6 +47,17 @@ Pick the start month, timeline length and projects. The workbook contains:
 - **Master / Hari Libur** — projects, people (capacity per day, hourly rate), statuses and holidays used by the formulas.
 All figures are Excel formulas, so you can keep editing the plan in Excel. Blank yellow rows in each block are for extra activities.
 
+## Excel upload (WBS & Workload)
+**File → Upload WBS & Workload (Excel)…** (⌘U), the **Upload Excel** button on Projects, or **Settings → Data**.
+1. Choose the `.xlsx` file (template *BTN WBS-Workload* or a MauProject export). Old `.xls` files must be saved as `.xlsx` first.
+2. Review the preview: projects (with activity counts and whether they are new or already exist), people, holidays and notes
+   (e.g. rows without a start date, PICs missing from Master).
+3. Choose the target space (new / existing / none), what to do with existing project codes (update & replace task plan, or create new),
+   and whether to update existing team members' role and capacity.
+4. Click **Import**. Mapping: each Task Plan row → task (rows with the same WBS & activity but different PICs become one task with several
+   assignees); *Jam/Hari* → allocation % of the PIC's daily capacity; *% Selesai* → progress; *Status* → status (On Hold → Blocked,
+   Delayed → In Progress + tag `delayed`); WBS codes like `1.2.3` rebuild the hierarchy; Master *Kapasitas (jam/hari)* → weekly capacity.
+
 ## Currency (IDR)
 **Settings → Currency & regional format**: choose **IDR — Rupiah Indonesia** and **Bahasa Indonesia** formatting
 (`Rp 1.250.000`, `24 Des 2026`). Changing currency does not convert stored amounts; use **Convert budgets & rates**
