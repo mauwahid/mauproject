@@ -28,6 +28,14 @@
 - **List / Tasks** — group by status, assignee, priority or project; click the circle to complete a task.
 - Press **⌘K** anywhere to search projects, tasks, people and commands.
 
+## Multi-select, bulk edit and delete
+- **Tasks (List tab, Tasks page)** — tick the checkboxes (or ⌘/Ctrl-click a row, Shift-click for a range; the header checkbox selects a whole group).
+- **Gantt** — ⌘/Ctrl-click or Shift-click rows; right-click a selected row for *Edit / Delete selected*; **Delete** deletes all selected.
+- **Projects** (cards or table) and **Team** — tick checkboxes or use *Select all*.
+- A bar appears at the bottom: quick actions (status, priority, move to space, shift ±1 day, active/inactive), **Edit** for a bulk-edit
+  form (only the fields you change are applied: status, priority, discipline, progress, start date, shift by working days, duration,
+  add/remove assignee, tag…), and **Delete** (with confirmation). Press **Esc** to clear the selection.
+
 ## Workload and capacity
 - **Workload** shows each engineer's allocation per day/week/month across all projects. Red cells are
   over-allocated. Click a cell to see contributing tasks and reassign to someone with spare capacity.

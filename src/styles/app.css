@@ -359,3 +359,23 @@ table.tbl { width: 100%; border-collapse: separate; border-spacing: 0; }
 .nav-section .add:hover { color: #fff; }
 .dash-grid.editing .dash-w.compact .dash-h { flex-wrap: wrap; row-gap: 4px; }
 .dash-grid.editing .dash-w.compact .dash-title { flex: 1 1 calc(100% - 44px); }
+
+/* ---------- multi-select ---------- */
+.sel-box { width: 15px; height: 15px; cursor: pointer; accent-color: var(--brand); margin: 0; flex: none; }
+.tbl tr.picked td { background: #eef2ff !important; }
+.bulk-bar {
+  position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 45;
+  display: flex; align-items: center; gap: 8px; padding: 8px 10px 8px 16px; border-radius: 12px;
+  background: #111827; color: #fff; box-shadow: var(--shadow-lg); animation: pop .14s; white-space: nowrap;
+}
+.bulk-bar span { color: #cbd5e1; }
+.bulk-sep { width: 1px; height: 22px; background: #374151; margin: 0 4px; }
+.bulk-btn { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 8px; border: none; background: #1f2937; color: #fff; cursor: pointer; font-weight: 550; }
+.bulk-btn:hover { background: #374151; }
+.bulk-btn.danger { color: #fca5a5; }
+.bulk-btn.danger:hover { background: #7f1d1d; color: #fff; }
+.bulk-btn.icon { width: 30px; padding: 0; justify-content: center; background: transparent; }
+.bulk-bar select { height: 30px; border-radius: 8px; border: none; background: #1f2937; color: #fff; padding: 0 8px; }
+.g-row.picked { background: #eef2ff; }
+.b-card.picked { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand-100); }
+.proj-card.picked { outline: 2px solid var(--brand); outline-offset: -1px; }

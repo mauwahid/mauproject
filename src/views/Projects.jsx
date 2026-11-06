@@ -3,6 +3,7 @@ import { LayoutGrid, Table2, MoreHorizontal, Pencil, Copy, Archive, Trash2, Fold
 import { useStore } from '../lib/store.jsx';
 import { TopBar, NewButton, navigate } from '../components/layout.jsx';
 import { HealthPill, ProjectStatusPill, PriorityPill, Progress, AvatarStack, Empty, ContextMenu, Segmented, confirmDialog } from '../components/ui.jsx';
+import { useSelection, SelectAll, RowCheck, BulkBar, BulkEditProjectsModal, confirmDeleteProjects } from '../components/bulk.jsx';
 import { PROJECT_STATUSES, fmtDate, fmtMoney } from '../lib/format.js';
 
 export default function Projects({ openModal }) {
@@ -39,6 +40,12 @@ export function ProjectsBody({ openModal, spaceId }) {
     if (filter === 'all') return true;
     return p.status === filter;
   });
+  const selection = useSelection(list.map((p) => p.id));
+  const [bulkEdit, setBulkEdit] = useState(false);
+  const cardClick = (p, e) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || selection.size) { e.preventDefault(); selection.toggle(p.id, e); return; }
+    navigate(`project/${p.id}/dashboard`);
+  };
 
   const teamOf = (pid) => {
     const tids = new Set(data.tasks.filter((t) => t.project_id === pid).map((t) => t.id));
@@ -83,6 +90,7 @@ export function ProjectsBody({ openModal, spaceId }) {
             { value: 'all', label: 'All' }, { value: 'archived', label: 'Archived' },
           ]} />
           <div className="grow" />
+          {list.length > 0 && <label className="row small muted" style={{ cursor: 'pointer' }}><SelectAll ids={list.map((p) => p.id)} selection={selection} />Select all</label>}
           <Segmented value={mode} onChange={setMode} options={[{ value: 'grid', icon: LayoutGrid, label: 'Cards' }, { value: 'table', icon: Table2, label: 'Table' }]} />
         </div>
 
@@ -93,9 +101,10 @@ export function ProjectsBody({ openModal, spaceId }) {
             {list.map((p) => {
               const s = derived.projectStats.get(p.id);
               return (
-                <div key={p.id} className="card proj-card" onClick={() => navigate(`project/${p.id}/dashboard`)}>
+                <div key={p.id} className={`card proj-card ${selection.has(p.id) ? 'picked' : ''}`} onClick={(e) => cardClick(p, e)}>
                   <div className="stripe" style={{ background: p.color }} />
                   <div className="row">
+                    <RowCheck id={p.id} selection={selection} />
                     <span className="code">{p.code || 'PROJECT'}</span>
                     {!spaceId && spaceById.get(p.space_id) && <span className="tag" style={{ background: spaceById.get(p.space_id).color + '1f', color: spaceById.get(p.space_id).color }}>{spaceById.get(p.space_id).name}</span>}
                     <div className="grow" />
@@ -123,12 +132,13 @@ export function ProjectsBody({ openModal, spaceId }) {
         ) : list.length > 0 && (
           <div className="card">
             <table className="tbl">
-              <thead><tr><th>Code</th><th>Project</th>{!spaceId && <th>Space</th>}<th>Manager</th><th>Status</th><th>Health</th><th>Progress</th><th>Start</th><th>Finish</th><th>Target</th><th className="num">Budget</th><th className="num">Planned cost</th><th /></tr></thead>
+              <thead><tr><th style={{ width: 34, paddingRight: 0 }}><SelectAll ids={list.map((p) => p.id)} selection={selection} /></th><th>Code</th><th>Project</th>{!spaceId && <th>Space</th>}<th>Manager</th><th>Status</th><th>Health</th><th>Progress</th><th>Start</th><th>Finish</th><th>Target</th><th className="num">Budget</th><th className="num">Planned cost</th><th /></tr></thead>
               <tbody>
                 {list.map((p) => {
                   const s = derived.projectStats.get(p.id);
                   return (
-                    <tr key={p.id} className="click" onClick={() => navigate(`project/${p.id}/dashboard`)}>
+                    <tr key={p.id} className={`click ${selection.has(p.id) ? 'picked' : ''}`} onClick={(e) => cardClick(p, e)}>
+                      <td style={{ paddingRight: 0 }}><RowCheck id={p.id} selection={selection} /></td>
                       <td className="faint bold">{p.code}</td>
                       <td><div className="row"><span style={{ width: 8, height: 8, borderRadius: 3, background: p.color }} /><b>{p.name}</b></div></td>
                       {!spaceId && <td className="small">{spaceById.get(p.space_id)?.name || <span className="faint">—</span>}</td>}
@@ -151,6 +161,18 @@ export function ProjectsBody({ openModal, spaceId }) {
         )}
       </div>
       {menu && <ContextMenu {...menu} onClose={() => setMenu(null)} />}
+      <BulkBar count={selection.size} noun="project" onClear={selection.clear} onEdit={() => setBulkEdit(true)}
+        onDelete={async () => { if (await confirmDeleteProjects(actions, data, selection.ids)) selection.clear(); }}>
+        <select value="" title="Set status" onChange={async (e) => { if (e.target.value) { await actions.bulkUpdateProjects(selection.ids, { status: e.target.value }); actions.toast('Projects updated', 'success'); } }}>
+          <option value="">Status…</option>{PROJECT_STATUSES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+        </select>
+        {data.spaces.length > 0 && (
+          <select value="" title="Move to space" onChange={async (e) => { if (e.target.value) { await actions.bulkUpdateProjects(selection.ids, { space_id: e.target.value === 'none' ? null : Number(e.target.value) }); actions.toast('Projects moved', 'success'); } }}>
+            <option value="">Move to space…</option>{data.spaces.map((sp) => <option key={sp.id} value={sp.id}>{sp.name}</option>)}<option value="none">No space</option>
+          </select>
+        )}
+      </BulkBar>
+      {bulkEdit && <BulkEditProjectsModal ids={selection.ids} onClose={() => setBulkEdit(false)} />}
     </>
   );
 }

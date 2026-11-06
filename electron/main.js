@@ -61,7 +61,7 @@ function createWindow() {
 
 /** Verification helper: MAUPROJECT_SHOTS=<dir> captures each main view to PNG and quits. */
 function runScreenshots(dir) {
-  const routes = (process.env.MAUPROJECT_ROUTES || 'dashboard,projects,project/1/gantt,project/1/wbs,project/1/board,project/1/list,tasks,workload,capacity,team,reports,settings').split(',');
+  const routes = (process.env.MAUPROJECT_ROUTES || 'dashboard,projects,project/1/gantt,project/1/wbs,project/1/board,project/1/list,tasks,workload,capacity,team,reports,settings').split(process.env.MAUPROJECT_ROUTE_SEP || ',');
   fs.mkdirSync(dir, { recursive: true });
   const wc = mainWindow.webContents;
   const errors = [];
@@ -69,17 +69,24 @@ function runScreenshots(dir) {
   wc.once('did-finish-load', async () => {
     const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     await wait(1500);
-    for (const spec of routes) {
+    for (const [idx, spec] of routes.entries()) {
       // "route|button text|button text" navigates, then clicks buttons by their visible text
       const [r, ...clicks] = spec.split('|');
       await wc.executeJavaScript(`window.location.hash = '#/${r}'`);
       await wait(900);
       for (const label of clicks) {
+        if (label.startsWith('js:')) {
+          try { await wc.executeJavaScript(label.slice(3)); } catch (err) { errors.push(`step failed: ${label} — ${err.message}`); }
+          await wait(600);
+          continue;
+        }
         await wc.executeJavaScript(`(() => { const b = [...document.querySelectorAll('button, .dash-add')].find((x) => x.textContent.trim() === ${JSON.stringify(label)}); if (b) b.click(); return !!b; })()`);
         await wait(600);
       }
       const img = await wc.capturePage();
-      fs.writeFileSync(path.join(dir, spec.replace(/[\/| ]/g, '_') + '.png'), img.toPNG());
+      const stepNames = clicks.filter((c) => !c.startsWith('js:')).join('_');
+      const fname = clicks.length ? `${String(idx + 1).padStart(2, '0')}_${r}_${stepNames}` : r;
+      fs.writeFileSync(path.join(dir, fname.replace(/[^\w.-]+/g, '_').slice(0, 120) + '.png'), img.toPNG());
     }
     if (process.env.MAUPROJECT_XLSX_OUT) {
       wc.send('menu:action', 'export-xlsx');
@@ -164,6 +171,8 @@ function registerIpc() {
   handle('db:update', (table, id, patch) => db.update(table, id, patch));
   handle('db:remove', (table, id) => db.remove(table, id));
   handle('db:bulkUpdate', (table, items) => db.bulkUpdate(table, items));
+  handle('db:removeMany', (table, ids) => db.removeMany(table, ids));
+  handle('db:createMany', (table, rows) => db.createMany(table, rows));
   handle('db:setSetting', (k, v) => db.setSetting(k, v));
   handle('db:comments', (taskId) => db.commentsFor(taskId));
   handle('db:saveDashboard', (t, id, w) => db.saveDashboard(t, id, w));

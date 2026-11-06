@@ -5,12 +5,15 @@ import { TopBar, NewButton } from '../components/layout.jsx';
 import { Avatar, Modal, Field, Empty, confirmDialog } from '../components/ui.jsx';
 import { computeWorkload, utilClass } from '../lib/analytics.js';
 import { addDays } from '../lib/calendar.js';
+import { useSelection, SelectAll, RowCheck, BulkBar, BulkEditResourcesModal, confirmDeleteResources } from '../components/bulk.jsx';
 import { DISCIPLINES, PALETTE, fmtMoney, fmtPct, fmtDate } from '../lib/format.js';
 
 export default function Team() {
   const { data, derived, actions } = useStore();
   const [edit, setEdit] = useState(null);
   const [timeOffFor, setTimeOffFor] = useState(null);
+  const selection = useSelection(data.resources.map((r) => r.id));
+  const [bulkEdit, setBulkEdit] = useState(false);
 
   const wl = useMemo(() => computeWorkload({
     resources: data.resources, tasks: data.tasks, assignments: data.assignments, timeOff: data.timeOff,
@@ -46,6 +49,7 @@ export default function Team() {
           <div className="card">
             <table className="tbl">
               <thead><tr>
+                <th style={{ width: 34, paddingRight: 0 }}><SelectAll ids={data.resources.map((r) => r.id)} selection={selection} /></th>
                 <th>Name</th><th>Role</th><th>Discipline</th><th className="num">Capacity</th><th className="num">Rate</th>
                 <th>Open tasks</th><th>Projects</th><th>Utilization (4 wks)</th><th>Time off</th><th />
               </tr></thead>
@@ -55,7 +59,9 @@ export default function Team() {
                   const u = utilOf.get(r.id);
                   const off = data.timeOff.filter((o) => o.resource_id === r.id && o.end_date >= derived.today);
                   return (
-                    <tr key={r.id} style={{ opacity: r.active ? 1 : 0.5 }}>
+                    <tr key={r.id} className={`click ${selection.has(r.id) ? 'picked' : ''}`} style={{ opacity: r.active ? 1 : 0.5 }}
+                      onClick={(e) => { if (e.target.closest('button')) return; selection.toggle(r.id, e); }}>
+                      <td style={{ paddingRight: 0 }}><RowCheck id={r.id} selection={selection} /></td>
                       <td><div className="row"><Avatar resource={r} /><div><div className="bold">{r.name}</div><div className="faint tiny">{r.email}</div></div></div></td>
                       <td>{r.role}</td>
                       <td>{r.discipline ? <span className="tag">{r.discipline}</span> : '—'}</td>
@@ -78,6 +84,12 @@ export default function Team() {
           </div>
         )}
       </div>
+      <BulkBar count={selection.size} noun="team member" onClear={selection.clear} onEdit={() => setBulkEdit(true)}
+        onDelete={async () => { if (await confirmDeleteResources(actions, data, selection.ids)) selection.clear(); }}>
+        <button className="bulk-btn" onClick={async () => { await actions.bulkUpdateResources(selection.ids, { active: 0 }); actions.toast('Marked inactive', 'success'); }}>Set inactive</button>
+        <button className="bulk-btn" onClick={async () => { await actions.bulkUpdateResources(selection.ids, { active: 1 }); actions.toast('Marked active', 'success'); }}>Set active</button>
+      </BulkBar>
+      {bulkEdit && <BulkEditResourcesModal ids={selection.ids} onClose={() => setBulkEdit(false)} />}
       {edit && <ResourceModal resource={edit.id ? edit : null} onClose={() => setEdit(null)} />}
       {timeOffFor && <TimeOffModal resource={timeOffFor} onClose={() => setTimeOffFor(null)} />}
     </>

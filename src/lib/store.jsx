@@ -177,10 +177,115 @@ export function StoreProvider({ children }) {
       return row;
     };
 
+    const updateMany = async (key, items) => {
+      if (!items.length) return [];
+      const rows = await api.db.bulkUpdate(COLL[key], items);
+      const map = new Map(rows.map((r) => [r.id, r]));
+      patch(key, (l) => l.map((x) => map.get(x.id) || x));
+      return rows;
+    };
+    const projectsOf = (taskIds) => [...new Set(ref.current.tasks.filter((t) => taskIds.includes(t.id)).map((t) => t.project_id))];
+
     return {
       reload,
       toast,
       openTask: setOpenTaskId,
+
+      // ---------- bulk operations (multi-select) ----------
+      /**
+       * Edit many tasks at once.
+       * patch: plain fields to set (status, priority, discipline, progress, start_date, duration, schedule_mode)
+       * extra: { shiftDays, addAssignee: {resourceId, units}, removeAssignee: resourceId, addTag }
+       */
+      async bulkUpdateTasks(ids, fields = {}, extra = {}) {
+        const d = ref.current;
+        const cal = calFor(d);
+        const parents = new Set(d.tasks.filter((t) => t.parent_id).map((t) => t.parent_id));
+        const hasPred = new Set(d.dependencies.map((x) => x.successor_id));
+        const items = [];
+        for (const id of ids) {
+          const t = d.tasks.find((x) => x.id === id);
+          if (!t) continue;
+          const p = { ...fields };
+          const summary = parents.has(id);
+          if (summary) { delete p.start_date; delete p.duration; delete p.progress; }
+          if (t.is_milestone) delete p.duration;
+          if (p.status === 'done' && p.progress === undefined && !summary) p.progress = 100;
+          if (p.status === 'todo' && p.progress === undefined && t.status === 'done' && !summary) p.progress = 0;
+          if (extra.shiftDays && !summary) {
+            p.start_date = cal.date(Math.max(0, cal.idx(p.start_date || t.start_date) + extra.shiftDays));
+          }
+          if ((p.start_date && hasPred.has(id))) p.schedule_mode = 'manual';
+          if (extra.addTag) {
+            const tags = new Set(String(t.tags || '').split(',').map((x) => x.trim()).filter(Boolean));
+            tags.add(extra.addTag.trim());
+            p.tags = [...tags].join(', ');
+          }
+          if (Object.keys(p).length) items.push({ id, patch: p });
+        }
+        await updateMany('tasks', items);
+        const leaves = ids.filter((id) => !parents.has(id));
+        if (extra.addAssignee) {
+          const rows = leaves
+            .filter((id) => !ref.current.assignments.some((a) => a.task_id === id && a.resource_id === extra.addAssignee.resourceId))
+            .map((id) => ({ task_id: id, resource_id: extra.addAssignee.resourceId, units: extra.addAssignee.units || 100 }));
+          if (rows.length) {
+            const created = await api.db.createMany('assignments', rows);
+            patch('assignments', (l) => [...l, ...created]);
+          }
+        }
+        if (extra.removeAssignee) {
+          const gone = ref.current.assignments.filter((a) => ids.includes(a.task_id) && a.resource_id === extra.removeAssignee).map((a) => a.id);
+          if (gone.length) {
+            await api.db.removeMany('assignments', gone);
+            patch('assignments', (l) => l.filter((a) => !gone.includes(a.id)));
+          }
+        }
+        for (const pid of projectsOf(ids)) await reschedule(pid);
+        return items.length;
+      },
+      async bulkDeleteTasks(ids) {
+        const d = ref.current;
+        const pids = projectsOf(ids);
+        await api.db.removeMany('tasks', ids);
+        const gone = new Set();
+        for (const id of ids) for (const x of descendants(d.tasks, id)) gone.add(x);
+        commit({
+          ...d,
+          tasks: d.tasks.filter((x) => !gone.has(x.id)),
+          dependencies: d.dependencies.filter((x) => !gone.has(x.predecessor_id) && !gone.has(x.successor_id)),
+          assignments: d.assignments.filter((a) => !gone.has(a.task_id)),
+        });
+        for (const pid of pids) await reschedule(pid);
+        return gone.size;
+      },
+      bulkUpdateProjects: (ids, fields) => updateMany('projects', ids.map((id) => ({ id, patch: fields }))),
+      async bulkDeleteProjects(ids) {
+        await api.db.removeMany('projects', ids);
+        const d = ref.current;
+        const pset = new Set(ids);
+        const tids = new Set(d.tasks.filter((t) => pset.has(t.project_id)).map((t) => t.id));
+        commit({
+          ...d,
+          projects: d.projects.filter((p) => !pset.has(p.id)),
+          dashboards: d.dashboards.filter((x) => !(x.scope_type === 'project' && pset.has(x.scope_id))),
+          tasks: d.tasks.filter((t) => !tids.has(t.id)),
+          dependencies: d.dependencies.filter((x) => !pset.has(x.project_id)),
+          assignments: d.assignments.filter((a) => !tids.has(a.task_id)),
+        });
+      },
+      bulkUpdateResources: (ids, fields) => updateMany('resources', ids.map((id) => ({ id, patch: fields }))),
+      async bulkDeleteResources(ids) {
+        await api.db.removeMany('resources', ids);
+        const d = ref.current;
+        const rset = new Set(ids);
+        commit({
+          ...d,
+          resources: d.resources.filter((r) => !rset.has(r.id)),
+          assignments: d.assignments.filter((a) => !rset.has(a.resource_id)),
+          timeOff: d.timeOff.filter((o) => !rset.has(o.resource_id)),
+        });
+      },
       reschedule,
       rescheduleAll,
 

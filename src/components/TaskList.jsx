@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight, Plus, Search, Diamond } from 'lucide-react';
 import { useStore } from '../lib/store.jsx';
 import { AvatarStack, Progress, Segmented } from './ui.jsx';
+import { useSelection, SelectAll, RowCheck, BulkBar, BulkEditTasksModal, confirmDeleteTasks } from './bulk.jsx';
 import { TASK_STATUSES, PRIORITIES, statusOf, priorityOf, fmtDate } from '../lib/format.js';
 
 /**
@@ -51,6 +52,14 @@ export default function TaskList({ projectId, showProject }) {
     return g.filter((x) => x.items.length);
   }, [groupBy, sorted, data.projects, data.resources, asg]);
 
+  const visibleIds = useMemo(() => [...new Set(groups.filter((g) => !folded.has(g.key)).flatMap((g) => g.items.map((t) => t.id)))], [groups, folded]);
+  const selection = useSelection(visibleIds);
+  const [bulkEdit, setBulkEdit] = useState(false);
+  const quickBulk = async (fields) => {
+    await actions.bulkUpdateTasks(selection.ids, fields);
+    actions.toast(`${selection.size} task${selection.size > 1 ? 's' : ''} updated`, 'success');
+  };
+
   const toggle = (k) => setFolded((f) => { const n = new Set(f); n.has(k) ? n.delete(k) : n.add(k); return n; });
 
   const quickAdd = async (group, name) => {
@@ -99,6 +108,7 @@ export default function TaskList({ projectId, showProject }) {
             <div className="card">
               <table className="tbl">
                 <thead><tr>
+                  <th style={{ width: 34, paddingRight: 0 }}><SelectAll ids={g.items.map((t) => t.id)} selection={selection} /></th>
                   <th style={{ width: '38%' }}>Name</th>
                   {showProject && <th>Project</th>}
                   <th>Assignees</th><th>Start</th><th>Due</th><th>Priority</th><th>Status</th><th style={{ width: 110 }}>Progress</th>
@@ -111,7 +121,9 @@ export default function TaskList({ projectId, showProject }) {
                     const people = (asg.get(t.id) || []).map((a) => derived.resById.get(a.resource_id)).filter(Boolean);
                     const st = statusOf(t.status);
                     return (
-                      <tr key={t.id} className="click" onClick={() => actions.openTask(t.id)}>
+                      <tr key={t.id} className={`click ${selection.has(t.id) ? 'picked' : ''}`}
+                        onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey) { e.preventDefault(); selection.toggle(t.id, e); } else actions.openTask(t.id); }}>
+                        <td style={{ paddingRight: 0 }}><RowCheck id={t.id} selection={selection} /></td>
                         <td>
                           <div className="row">
                             <span className="status-dot" title="Mark done" style={{ borderColor: st.color, background: t.status === 'done' ? st.color : 'transparent' }}
@@ -155,6 +167,16 @@ export default function TaskList({ projectId, showProject }) {
         </div>
       ))}
       {!groups.some((g) => g.items.length) && <div className="empty">No tasks match the current filters.</div>}
+      <BulkBar count={selection.size} noun="task" onClear={selection.clear} onEdit={() => setBulkEdit(true)}
+        onDelete={async () => { if (await confirmDeleteTasks(actions, data, selection.ids)) selection.clear(); }}>
+        <select value="" onChange={(e) => e.target.value && quickBulk({ status: e.target.value })} title="Set status">
+          <option value="">Status…</option>{TASK_STATUSES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+        </select>
+        <select value="" onChange={(e) => e.target.value && quickBulk({ priority: e.target.value })} title="Set priority">
+          <option value="">Priority…</option>{PRIORITIES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+        </select>
+      </BulkBar>
+      {bulkEdit && <BulkEditTasksModal ids={selection.ids} onClose={() => setBulkEdit(false)} />}
     </div>
   );
 }

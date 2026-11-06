@@ -28,6 +28,7 @@ engineering capacity planning in a single macOS desktop application.
   critical path, baselines and slippage, day/week/month zoom, target and today lines.
 - **WBS** — outline with rolled-up dates, progress, estimate, planned work and cost; tree diagram; CSV export.
 - **Board & List (ClickUp-style)** — Kanban drag-and-drop by status; grouped lists by status/assignee/priority/project with quick add.
+- **Multi-select & bulk actions** — select many tasks (List, Tasks, Gantt), projects or team members; bulk edit fields or delete.
 - **Task details** — status, priority, dates, duration, progress, discipline, estimate, assignees with % units,
   dependencies, subtasks, description, comments.
 - **Workload** — resource × period heatmap across all projects, over-allocation detection, drill-down and one-click reassignment to people with free capacity.

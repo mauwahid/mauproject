@@ -6,6 +6,7 @@ import {
 import { useStore } from '../../lib/store.jsx';
 import { BlurInput } from '../../components/TaskDrawer.jsx';
 import { Segmented, confirmDialog, ContextMenu } from '../../components/ui.jsx';
+import { useSelection, BulkBar, BulkEditTasksModal, confirmDeleteTasks } from '../../components/bulk.jsx';
 import { addDays, diffDays, parseDate, minDate, maxDate, startOfWeek, startOfMonth, addMonths } from '../../lib/calendar.js';
 import { predLabel } from '../../lib/scheduler.js';
 import { fmtDate } from '../../lib/format.js';
@@ -62,6 +63,11 @@ export default function Gantt({ project }) {
     return out;
   }, [sched, collapsed]);
   const rowIndex = useMemo(() => new Map(rows.map((r, i) => [r.id, i])), [rows]);
+  const picked = useSelection(useMemo(() => rows.map((r) => r.id), [rows]));
+  const multi = picked.size > 1;
+  const [bulkEdit, setBulkEdit] = useState(false);
+  const pickRow = (id, e) => { setSelected(id); picked.click(id, e); };
+  const deletePicked = async () => { if (await confirmDeleteTasks(actions, data, picked.ids)) { picked.clear(); setSelected(null); } };
 
   // time range
   const range = useMemo(() => {
@@ -188,6 +194,7 @@ export default function Gantt({ project }) {
     if (res) actions.toast(`Linked ${leaves[i - 1].wbs} → ${sel.wbs}`, 'success');
   };
   const del = async (r = sel) => {
+    if (multi) return deletePicked();
     if (!r) return;
     const ok = await confirmDialog({ title: 'Delete task?', danger: true, confirmLabel: 'Delete', message: `“${r.task.name}”${r.isSummary ? ' and all of its subtasks' : ''} will be permanently deleted.` });
     if (ok) { await actions.deleteTask(r.id); setSelected(null); }
@@ -204,7 +211,7 @@ export default function Gantt({ project }) {
         e.preventDefault();
         const i = rowIndex.get(selected) ?? 0;
         const n = rows[Math.max(0, Math.min(rows.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1)))];
-        if (n) setSelected(n.id);
+        if (n) pickRow(n.id, e);
       }
     };
     window.addEventListener('keydown', k);
@@ -293,7 +300,16 @@ export default function Gantt({ project }) {
 
   const rowMenu = (e, r) => {
     e.preventDefault();
-    setSelected(r.id);
+    if (multi && picked.has(r.id)) {
+      setMenu({
+        x: e.clientX, y: e.clientY, items: [
+          { label: `Edit ${picked.size} selected tasks…`, icon: ChevronRight, onClick: () => setBulkEdit(true) },
+          { label: `Delete ${picked.size} selected tasks`, icon: Trash2, danger: true, onClick: deletePicked },
+        ],
+      });
+      return;
+    }
+    pickRow(r.id);
     setMenu({
       x: e.clientX, y: e.clientY, items: [
         { label: 'Open details', icon: ChevronRight, onClick: () => actions.openTask(r.id) },
@@ -351,8 +367,8 @@ export default function Gantt({ project }) {
                 const t = r.task;
                 const late = !r.isSummary && t.status !== 'done' && r.finish < derived.today;
                 return (
-                  <div key={r.id} className={`g-row ${r.isSummary ? 'summary' : ''} ${selected === r.id ? 'sel' : ''}`}
-                    onMouseDown={() => setSelected(r.id)} onDoubleClick={() => actions.openTask(r.id)} onContextMenu={(e) => rowMenu(e, r)}>
+                  <div key={r.id} className={`g-row ${r.isSummary ? 'summary' : ''} ${multi && picked.has(r.id) ? 'picked' : selected === r.id ? 'sel' : ''}`}
+                    onMouseDown={(e) => { if (e.button === 0) { if (e.shiftKey || e.metaKey || e.ctrlKey) e.preventDefault(); pickRow(r.id, e); } }} onDoubleClick={() => actions.openTask(r.id)} onContextMenu={(e) => rowMenu(e, r)}>
                     <div className="g-cell faint" style={{ width: COLS[0].w }}>{r.wbs}</div>
                     <div className="g-cell" style={{ width: COLS[1].w, paddingLeft: 6 + r.level * 16 }}>
                       {r.isSummary
@@ -414,11 +430,11 @@ export default function Gantt({ project }) {
               ))}
             </svg>
           </div>
-          <div style={{ position: 'relative', width, height: bodyH }} onMouseDown={(e) => { if (e.target === e.currentTarget || e.target.tagName === 'svg') setSelected(null); }}>
+          <div style={{ position: 'relative', width, height: bodyH }} onMouseDown={(e) => { if (e.target === e.currentTarget || e.target.tagName === 'svg') { setSelected(null); picked.clear(); } }}>
             <svg width={width} height={bodyH} style={{ position: 'absolute', left: 0, top: 0 }}>
               {nonWorking.map((d) => <rect key={d} x={xOf(d)} y={0} width={ppd} height={bodyH} fill="#f6f7fa" />)}
               {zoom !== 'day' && header.bottom.map((h, i) => <line key={i} x1={h.x} x2={h.x} y1={0} y2={bodyH} stroke="#f1f2f5" />)}
-              {rows.map((r, i) => selected === r.id && <rect key={r.id} x={0} y={i * ROW} width={width} height={ROW} fill="#eef2ff" />)}
+              {rows.map((r, i) => (selected === r.id || (multi && picked.has(r.id))) && <rect key={r.id} x={0} y={i * ROW} width={width} height={ROW} fill="#eef2ff" />)}
               {project.target_date && (
                 <g>
                   <line x1={xOf(project.target_date) + ppd} x2={xOf(project.target_date) + ppd} y1={0} y2={bodyH} stroke="#7c3aed" strokeDasharray="4 4" />
@@ -506,9 +522,16 @@ export default function Gantt({ project }) {
         <Flag size={12} />
         <span>{sched.rows.filter((r) => !r.isSummary).length} tasks · {sched.criticalCount} on critical path · {fmtDate(sched.start)} → {fmtDate(sched.finish)} ({sched.start ? cal.workdays(sched.start, sched.finish) : 0} working days)</span>
         <div className="grow" />
-        <span className="faint">Drag bars to reschedule · drag the right edge to change duration · drag the dot to link · Tab/Shift+Tab to indent · Enter for details</span>
+        <span className="faint">⌘/Shift-click rows to multi-select · Drag bars to reschedule · drag the right edge to change duration · drag the dot to link · Tab/Shift+Tab to indent · Enter for details</span>
       </div>
       {menu && <ContextMenu {...menu} onClose={() => setMenu(null)} />}
+      {multi && (
+        <BulkBar count={picked.size} noun="task" onClear={() => picked.clear()} onEdit={() => setBulkEdit(true)} onDelete={deletePicked}>
+          <button className="bulk-btn" title="Shift selected tasks one working day earlier" onClick={() => actions.bulkUpdateTasks(picked.ids, {}, { shiftDays: -1 })}>−1d</button>
+          <button className="bulk-btn" title="Shift selected tasks one working day later" onClick={() => actions.bulkUpdateTasks(picked.ids, {}, { shiftDays: 1 })}>+1d</button>
+        </BulkBar>
+      )}
+      {bulkEdit && <BulkEditTasksModal ids={picked.ids} onClose={() => setBulkEdit(false)} />}
     </>
   );
 }

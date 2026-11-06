@@ -247,6 +247,20 @@ class MauProjectDB {
     return tx(items || []);
   }
 
+  /** Delete many rows atomically (foreign-key cascades apply). */
+  removeMany(table, ids) {
+    assertTable(table);
+    const stmt = this.db.prepare(`DELETE FROM ${table} WHERE id = ?`);
+    this.db.transaction((list) => { for (const id of list) stmt.run(id); })(ids || []);
+    return true;
+  }
+
+  /** Insert many rows atomically; returns the created rows. */
+  createMany(table, rows) {
+    assertTable(table);
+    return this.db.transaction((list) => list.map((r) => this.create(table, r)))(rows || []);
+  }
+
   // ---------- aggregate ----------
   loadAll() {
     const settings = {};

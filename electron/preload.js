@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('mauproject', {
     update: invoke('db:update'),
     remove: invoke('db:remove'),
     bulkUpdate: invoke('db:bulkUpdate'),
+    removeMany: invoke('db:removeMany'),
+    createMany: invoke('db:createMany'),
     setSetting: invoke('db:setSetting'),
     comments: invoke('db:comments'),
     saveDashboard: invoke('db:saveDashboard'),
